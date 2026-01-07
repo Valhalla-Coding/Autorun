@@ -436,11 +436,11 @@ def get_service_status(service_name: str) -> Dict[str, any]:
         except ValueError:
             exit_code = None
 
-        # Get last 10 log lines to find error
+        # Get last 20 log lines to find error
         try:
             log_result = subprocess.run(
                 ["/usr/bin/journalctl", "-u", f"autorun-{service_name}.service",
-                 "-n", "10", "--no-pager", "-o", "cat"],
+                 "-n", "20", "--no-pager"],
                 capture_output=True,
                 text=True,
                 check=False
@@ -448,17 +448,29 @@ def get_service_status(service_name: str) -> Dict[str, any]:
 
             # Search for error keywords in reverse order (most recent first)
             if log_result.returncode == 0:
-                error_keywords = ['error', 'exception', 'failed', 'errno', 'traceback']
+                error_keywords = ['error', 'exception', 'failed', 'errno', 'traceback',
+                                 'no such file', 'cannot', 'chdir', 'exited', 'status=']
                 for line in reversed(log_result.stdout.splitlines()):
-                    if any(keyword in line.lower() for keyword in error_keywords):
-                        error_message = line.strip()
+                    line_lower = line.lower()
+                    if any(keyword in line_lower for keyword in error_keywords):
+                        # Extract meaningful part after timestamp
+                        # Format: "Jan 07 21:54:21 ubuntu systemd[1]: message"
+                        parts = line.split(': ', 1)
+                        if len(parts) > 1:
+                            error_message = parts[1].strip()
+                        else:
+                            error_message = line.strip()
                         break
 
                 # If no keyword match, use the last non-empty line
                 if not error_message:
                     for line in reversed(log_result.stdout.splitlines()):
                         if line.strip():
-                            error_message = line.strip()
+                            parts = line.split(': ', 1)
+                            if len(parts) > 1:
+                                error_message = parts[1].strip()
+                            else:
+                                error_message = line.strip()
                             break
         except Exception:
             # If log retrieval fails, continue without error message
