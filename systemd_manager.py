@@ -440,38 +440,54 @@ def get_service_status(service_name: str) -> Dict[str, any]:
         try:
             log_result = subprocess.run(
                 ["/usr/bin/journalctl", "-u", f"autorun-{service_name}.service",
-                 "-n", "20", "--no-pager"],
+                 "-n", "20", "--no-pager", "-o", "short-precise"],
                 capture_output=True,
                 text=True,
                 check=False
             )
 
             # Search for error keywords in reverse order (most recent first)
-            if log_result.returncode == 0:
+            if log_result.returncode == 0 and log_result.stdout.strip():
                 error_keywords = ['error', 'exception', 'failed', 'errno', 'traceback',
-                                 'no such file', 'cannot', 'chdir', 'exited', 'status=']
-                for line in reversed(log_result.stdout.splitlines()):
+                                 'no such file', 'cannot', 'chdir', 'exit', 'status=']
+
+                lines = log_result.stdout.splitlines()
+                for line in reversed(lines):
+                    if not line.strip():
+                        continue
+
                     line_lower = line.lower()
                     if any(keyword in line_lower for keyword in error_keywords):
-                        # Extract meaningful part after timestamp
-                        # Format: "Jan 07 21:54:21 ubuntu systemd[1]: message"
-                        parts = line.split(': ', 1)
-                        if len(parts) > 1:
-                            error_message = parts[1].strip()
-                        else:
-                            error_message = line.strip()
-                        break
+                        # Try to extract message after the last colon
+                        # Format varies: "Jan 07 21:54:21 ubuntu systemd[1]: message"
+                        # or: "Jan 07 21:54:21 ubuntu (python3)[741835]: message"
+                        if ']:' in line:
+                            # Find the last ']:'
+                            idx = line.rfind(']:')
+                            if idx != -1:
+                                error_message = line[idx+2:].strip()
+                                break
+                        elif ': ' in line:
+                            # Fallback: split on first ': ' after hostname
+                            parts = line.split(': ', 2)
+                            if len(parts) >= 2:
+                                error_message = parts[-1].strip()
+                                break
 
                 # If no keyword match, use the last non-empty line
-                if not error_message:
-                    for line in reversed(log_result.stdout.splitlines()):
+                if not error_message and lines:
+                    for line in reversed(lines):
                         if line.strip():
-                            parts = line.split(': ', 1)
-                            if len(parts) > 1:
-                                error_message = parts[1].strip()
-                            else:
-                                error_message = line.strip()
-                            break
+                            if ']:' in line:
+                                idx = line.rfind(']:')
+                                if idx != -1:
+                                    error_message = line[idx+2:].strip()
+                                    break
+                            elif ': ' in line:
+                                parts = line.split(': ', 2)
+                                if len(parts) >= 2:
+                                    error_message = parts[-1].strip()
+                                    break
         except Exception:
             # If log retrieval fails, continue without error message
             pass

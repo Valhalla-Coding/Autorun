@@ -405,13 +405,25 @@ body {
     transition: all 0.2s;
 }
 
+/* Form action buttons - styled identically except for background */
+.btn-primary, .btn-danger {
+    color: white;
+}
+
 .btn-primary {
     background-color: var(--accent-primary);
-    color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
     background-color: var(--accent-hover);
+}
+
+.btn-danger {
+    background-color: var(--status-failed);
+}
+
+.btn-danger:hover:not(:disabled) {
+    background-color: #d32f2f;
 }
 
 .btn-secondary {
@@ -422,15 +434,6 @@ body {
 
 .btn-secondary:hover:not(:disabled) {
     background-color: var(--bg-hover);
-}
-
-.btn-danger {
-    background-color: var(--status-failed);
-    color: white;
-}
-
-.btn-danger:hover:not(:disabled) {
-    background-color: #d32f2f;
 }
 
 .btn-icon {
