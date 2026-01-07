@@ -1,0 +1,46 @@
+# AutoRun v2 Configuration Example
+# Copy this file to autorun.yaml and customize for your environment
+
+autorun:
+  version: '1.0'
+  # Port for the AutoRun dashboard (use ports > 1024 to avoid permission issues)
+  # Common choices: 5000, 5050, 8080, 8000
+  dashboard_port: 5050
+  log_level: INFO
+  # Change to your Linux username
+  default_user: your-username
+
+# Managed services - each service will be configured as a systemd service
+services:
+  # Example service configuration (disabled by default)
+  - name: example-service
+    enabled: false
+    # Full path to your application directory
+    folder: /home/your-username/example
+    # Python file to execute (must keep process running)
+    entrypoint: run.py
+    # Port your service will use (optional)
+    port: 5001
+    # Whether this service has a web interface
+    web_interface: true
+    # Restart policy: always, on-failure, or no
+    auto_restart: always
+    description: Example service (disabled by default)
+    # Environment variables for your service (optional)
+    environment: {}
+    # Service dependencies (optional) - list of service names that must start first
+    depends_on: []
+
+  # Add your own services here following the same format
+  # - name: my-app
+  #   enabled: true
+  #   folder: /home/your-username/my-app
+  #   entrypoint: run.py
+  #   port: 5002
+  #   web_interface: true
+  #   auto_restart: always
+  #   description: My Flask Application
+  #   environment:
+  #     DEBUG: "false"
+  #     LOG_LEVEL: "INFO"
+  #   depends_on: []

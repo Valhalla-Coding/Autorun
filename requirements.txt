@@ -1,0 +1,13 @@
+# AutoRun v2 Dependencies
+
+# Web framework
+flask>=3.0.0
+
+# YAML parsing with comment preservation
+ruamel.yaml>=0.18.0
+
+# HTTP requests (for future proxy feature)
+requests>=2.31.0
+
+# Better date/time handling
+python-dateutil>=2.8.0

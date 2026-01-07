@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoRun v2 - Service Manager</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header class="app-header">
+        <div class="header-content">
+            <h1>AutoRun v2</h1>
+            <p class="header-subtitle">Service Manager</p>
+        </div>
+        <div class="header-actions">
+            <button id="reload-config" class="btn-secondary" type="button">Reload Config</button>
+            <span id="status-indicator" class="status-badge status-ready">Ready</span>
+        </div>
+    </header>
+
+    <nav class="tabs">
+        <div class="tab active" data-tab="management">Management</div>
+        <div class="tab" data-tab="console">Console</div>
+    </nav>
+
+    <main class="tab-content-container">
+        <div class="tab-panel active" id="tab-management">
+            {% include 'management.html' %}
+        </div>
+        <div class="tab-panel" id="tab-console">
+            <div class="placeholder">
+                <h2>Console Tab</h2>
+                <p>Log viewer and real-time streaming - Coming in Phase 2</p>
+            </div>
+        </div>
+    </main>
+
+    <footer class="app-footer">
+        <span id="footer-status">AutoRun v2 - Ready</span>
+        <span id="footer-info"></span>
+    </footer>
+
+    <!-- Toast notification container -->
+    <div id="toast-container"></div>
+
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/tabs.js"></script>
+    <script src="/static/js/browser.js"></script>
+    <script src="/static/js/services.js"></script>
+</body>
+</html>

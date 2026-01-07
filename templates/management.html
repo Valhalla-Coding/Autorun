@@ -1,0 +1,166 @@
+<div class="management-tab">
+    <section class="system-status">
+        <h2>System Status</h2>
+        <div class="status-grid">
+            <div class="status-card">
+                <span class="label">Total Services</span>
+                <span class="value" id="total-services">0</span>
+            </div>
+            <div class="status-card">
+                <span class="label">Running</span>
+                <span class="value status-running" id="running-services">0</span>
+            </div>
+            <div class="status-card">
+                <span class="label">Stopped</span>
+                <span class="value status-stopped" id="stopped-services">0</span>
+            </div>
+            <div class="status-card">
+                <span class="label">Failed</span>
+                <span class="value status-error" id="failed-services">0</span>
+            </div>
+        </div>
+        <div class="system-actions">
+            <button id="daemon-reload" class="btn-secondary">Daemon Reload</button>
+            <button id="apply-changes" class="btn-primary">Apply All Changes</button>
+        </div>
+    </section>
+
+    <section class="services-section">
+        <div class="section-header">
+            <h2>Services</h2>
+            <button id="add-service" class="btn-primary">+ Add Service</button>
+        </div>
+        <div id="services-grid" class="services-grid">
+            <!-- Service cards will be inserted here by JavaScript -->
+            <div class="loading-placeholder">Loading services...</div>
+        </div>
+    </section>
+
+    <!-- Service Add/Edit Modal -->
+    <div id="service-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Add Service</h3>
+                <button class="modal-close" type="button">&times;</button>
+            </div>
+            <form id="service-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="service-name">Name *</label>
+                        <input type="text" id="service-name" name="name" required
+                               placeholder="my-service" pattern="[a-z0-9-]+"
+                               title="Use lowercase letters, numbers, and hyphens only">
+                        <small>Use lowercase letters, numbers, and hyphens</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="service-folder">Folder *</label>
+                        <div class="input-with-button">
+                            <input type="text" id="service-folder" name="folder" required
+                                   placeholder="/home/user/myapp">
+                            <button type="button" id="browse-folder" class="btn-icon" title="Browse folders">📁</button>
+                        </div>
+                        <small>Full path to service directory</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="service-entrypoint">Entrypoint *</label>
+                        <div class="input-with-button">
+                            <input type="text" id="service-entrypoint" name="entrypoint"
+                                   value="run.py" required placeholder="run.py">
+                            <button type="button" id="browse-file" class="btn-icon" title="Browse files">📄</button>
+                        </div>
+                        <small>Python file to execute</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="service-port">Port</label>
+                        <input type="number" id="service-port" name="port"
+                               min="1" max="65535" placeholder="5001">
+                        <small>Optional: Port for web services</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="service-restart">Auto Restart</label>
+                        <select id="service-restart" name="auto_restart">
+                            <option value="always">Always</option>
+                            <option value="on-failure">On Failure</option>
+                            <option value="no">No</option>
+                        </select>
+                        <small>When to automatically restart service</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="service-description">Description</label>
+                        <textarea id="service-description" name="description"
+                                  rows="2" placeholder="Brief description of the service"></textarea>
+                    </div>
+
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="service-web-interface" name="web_interface">
+                            <span>Web Interface</span>
+                        </label>
+                        <small>Service provides a web interface</small>
+                    </div>
+
+                    <div class="form-group checkbox-group">
+                        <label>
+                            <input type="checkbox" id="service-enabled" name="enabled" checked>
+                            <span>Enabled</span>
+                        </label>
+                        <small>Enable service to start on boot</small>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary modal-close">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Service</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3>Delete Service</h3>
+                <button class="modal-close-delete" type="button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="delete-service-name"></strong>?</p>
+                <p class="warning-text">This will stop the service and remove its systemd configuration.</p>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-secondary modal-close-delete">Cancel</button>
+                <button type="button" id="confirm-delete" class="btn-danger">Delete Service</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Folder/File Browser Modal -->
+    <div id="browser-modal" class="modal hidden">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="browser-title">Browse Folders</h3>
+                <button class="modal-close-browser" type="button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="browser-path">
+                    <span id="browser-current-path">/home</span>
+                </div>
+                <div id="browser-list" class="browser-list">
+                    <div class="loading-placeholder">Loading...</div>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn-secondary modal-close-browser">Cancel</button>
+                <button type="button" id="browser-select" class="btn-primary">Select</button>
+            </div>
+        </div>
+    </div>
+</div>
