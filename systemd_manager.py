@@ -65,8 +65,8 @@ Description={service.description or service.name}
 [Service]
 Type=simple
 User={user}
-WorkingDirectory={service.folder}
-ExecStart=/usr/bin/python3 {service.folder}/{service.entrypoint}
+WorkingDirectory="{service.folder}"
+ExecStart=/usr/bin/python3 "{service.folder}/{service.entrypoint}"
 {env_section}
 Restart={service.auto_restart}
 RestartSec=3
