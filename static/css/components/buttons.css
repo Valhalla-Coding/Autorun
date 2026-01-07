@@ -2,10 +2,9 @@
    Buttons Component
    ============================================================================ */
 
-/* Base button styles */
+/* Base button styles - shared properties only */
 .btn-primary, .btn-secondary, .btn-danger, .btn-icon {
     padding: 0.5rem 1rem;
-    border: none;
     border-radius: 4px;
     font-size: 0.9rem;
     font-weight: 500;
@@ -13,14 +12,10 @@
     transition: all 0.2s;
 }
 
-/* Form action buttons - styled identically except for background */
+/* Primary and Danger buttons - borderless with white text */
 .btn-primary, .btn-danger {
     color: white;
     border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 4px;
-    font-size: 0.9rem;
-    font-weight: 500;
 }
 
 .btn-primary {
@@ -39,6 +34,7 @@
     background-color: #d32f2f;
 }
 
+/* Secondary button - with border */
 .btn-secondary {
     background-color: var(--bg-tertiary);
     color: var(--text-primary);
@@ -49,9 +45,11 @@
     background-color: var(--bg-hover);
 }
 
+/* Icon buttons - smaller padding, no border */
 .btn-icon {
     padding: 0.4rem 0.6rem;
     background-color: var(--bg-hover);
+    border: none;
     font-size: 1rem;
 }
 
@@ -59,6 +57,7 @@
     background-color: var(--accent-primary);
 }
 
+/* Disabled state for all buttons */
 button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
