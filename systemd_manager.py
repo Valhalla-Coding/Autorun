@@ -57,6 +57,8 @@ def generate_service_file(service: ServiceConfig, user: str) -> str:
     env_section = "\n".join(env_lines) if env_lines else ""
 
     # Generate service file content
+    # Use WorkingDirectory + relative path to avoid space issues in ExecStart
+    # systemd handles spaces in WorkingDirectory correctly without quotes
     content = f"""[Unit]
 Description={service.description or service.name}
 {after_line}
@@ -65,8 +67,8 @@ Description={service.description or service.name}
 [Service]
 Type=simple
 User={user}
-WorkingDirectory="{service.folder}"
-ExecStart=/usr/bin/python3 "{service.folder}/{service.entrypoint}"
+WorkingDirectory={service.folder}
+ExecStart=/usr/bin/python3 {service.entrypoint}
 {env_section}
 Restart={service.auto_restart}
 RestartSec=3
