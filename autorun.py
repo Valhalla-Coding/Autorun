@@ -227,6 +227,133 @@ def render_services_grid():
     return '\n'.join(services_html)
 
 
+@app.route('/components/modal/service-form')
+def render_service_form_modal():
+    """
+    Render service form modal (add or edit)
+
+    Query params:
+        mode: 'add' or 'edit'
+        service_name: Name of service (required for edit mode)
+
+    Returns:
+        Rendered modal HTML fragment
+    """
+    mode = request.args.get('mode', 'add')
+    service_name = request.args.get('service_name')
+
+    service_data = None
+    if mode == 'edit' and service_name:
+        try:
+            svc = find_service(service_name)
+            status_info = systemd_manager.get_service_status(service_name)
+            service_data = {
+                "name": svc.name,
+                "config": svc.to_dict(),
+                **status_info
+            }
+        except Exception as e:
+            logger.error(f"Error loading service for edit: {e}")
+
+    return render_template('components/modals/service_form.html', mode=mode, service=service_data)
+
+
+@app.route('/components/modal/delete-confirm/<service_name>')
+def render_delete_confirm_modal(service_name: str):
+    """
+    Render delete confirmation modal
+
+    Args:
+        service_name: Name of service to delete
+
+    Returns:
+        Rendered modal HTML fragment
+    """
+    return render_template('components/modals/delete_confirm.html', service_name=service_name)
+
+
+@app.route('/components/modal/file-browser')
+def render_file_browser_modal():
+    """
+    Render file/folder browser modal
+
+    Query params:
+        type: 'folder' or 'file'
+        path: Current path to browse (optional, defaults to home)
+
+    Returns:
+        Rendered modal HTML fragment with directory listing
+    """
+    from pathlib import Path
+
+    browser_type = request.args.get('type', 'folder')
+    start_path = request.args.get('path', str(Path.home()))
+
+    try:
+        path = Path(start_path).resolve()
+
+        # Security: Don't allow browsing outside reasonable paths
+        allowed_paths = ('/home', '/opt', '/srv', '/var/www', '/mnt')
+        path_str = str(path)
+
+        is_allowed = any(
+            path_str == allowed or path_str.startswith(allowed + '/')
+            for allowed in allowed_paths
+        )
+
+        if not is_allowed:
+            return render_template('components/modals/file_browser.html',
+                                 browser_type=browser_type,
+                                 current_path=path_str,
+                                 parent=None,
+                                 items=[],
+                                 error="Access denied to this path"), 403
+
+        if not path.exists() or not path.is_dir():
+            return render_template('components/modals/file_browser.html',
+                                 browser_type=browser_type,
+                                 current_path=path_str,
+                                 parent=None,
+                                 items=[],
+                                 error="Path does not exist"), 400
+
+        # List items based on type
+        items = []
+        try:
+            if browser_type == 'file':
+                # List Python files
+                for item in sorted(path.iterdir()):
+                    if item.is_file() and item.suffix == '.py':
+                        items.append({"name": item.name, "path": str(item)})
+            else:
+                # List directories
+                for item in sorted(path.iterdir()):
+                    if item.is_dir() and not item.name.startswith('.'):
+                        items.append({"name": item.name, "path": str(item)})
+        except PermissionError:
+            pass
+
+        # Add parent directory if not at root
+        parent = None
+        if path != path.parent:
+            parent = str(path.parent)
+
+        return render_template('components/modals/file_browser.html',
+                             browser_type=browser_type,
+                             current_path=str(path),
+                             parent=parent,
+                             items=items)
+
+    except Exception as e:
+        logger.error(f"Error rendering file browser: {e}")
+        return render_template('components/modals/file_browser.html',
+                             browser_type=browser_type,
+                             current_path=start_path,
+                             parent=None,
+                             items=[],
+                             error=str(e)), 500
+
+
 # ============================================================================
 # Service Management API
 # ============================================================================

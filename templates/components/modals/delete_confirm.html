@@ -1,0 +1,19 @@
+{# Delete Confirmation Modal Component #}
+{# Parameters: service_name (string) #}
+<div id="delete-modal" class="modal">
+    <div class="modal-overlay"></div>
+    <div class="modal-content modal-small">
+        <div class="modal-header">
+            <h3>Delete Service</h3>
+            <button class="modal-close-delete" type="button">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>Are you sure you want to delete <strong id="delete-service-name">{{ service_name }}</strong>?</p>
+            <p class="warning-text">This will stop the service and remove its systemd configuration.</p>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn-secondary modal-close-delete">Cancel</button>
+            <button type="button" id="confirm-delete" class="btn-danger">Delete Service</button>
+        </div>
+    </div>
+</div>

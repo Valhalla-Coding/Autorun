@@ -35,21 +35,38 @@ class FileBrowser {
     }
 
     async showBrowser(title, startPath) {
-        const modal = $('#browser-modal');
-        if (!modal) return;
+        const container = $('#modal-container');
+        if (!container) return;
 
-        $('#browser-title').textContent = title;
         this.selectedPath = null;
 
-        modal.classList.remove('hidden');
+        try {
+            // Build URL with query params
+            let url = `/components/modal/file-browser?type=${this.mode}`;
+            if (startPath) {
+                url += `&path=${encodeURIComponent(startPath)}`;
+            }
 
-        if (this.mode === 'folder') {
-            await this.loadFolders(startPath);
-        } else {
-            await this.loadFiles(startPath);
+            // Fetch modal HTML from server
+            const response = await fetch(url);
+            const html = await response.text();
+
+            // Insert modal into container
+            container.innerHTML = html;
+
+            // Show modal
+            const modal = $('#browser-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                this.currentPath = $('#browser-current-path')?.textContent;
+
+                // Attach event listeners
+                this.setupBrowserEventListeners();
+                this.attachBrowserItemListeners();
+            }
+        } catch (error) {
+            notify.error(`Failed to load browser: ${error.message}`);
         }
-
-        this.setupBrowserEventListeners();
     }
 
     setupBrowserEventListeners() {
@@ -78,142 +95,54 @@ class FileBrowser {
         const modal = $('#browser-modal');
         if (modal) {
             modal.classList.add('hidden');
+            // Clear modal container after animation
+            setTimeout(() => {
+                $('#modal-container').innerHTML = '';
+            }, 300);
             this.selectedPath = null;
         }
     }
 
-    async loadFolders(path) {
-        const listEl = $('#browser-list');
-        if (!listEl) return;
-
-        listEl.innerHTML = '<div class="loading-placeholder">Loading...</div>';
-
-        try {
-            const url = path ? `/api/browse/folders?path=${encodeURIComponent(path)}` : '/api/browse/folders';
-            const response = await API.get(url);
-
-            if (response.status === 'success') {
-                this.currentPath = response.data.current_path;
-                $('#browser-current-path').textContent = this.currentPath;
-
-                this.renderFolders(response.data);
-            }
-        } catch (error) {
-            listEl.innerHTML = `<div class="loading-placeholder">Error: ${error.message}</div>`;
-        }
+    async navigateToPath(path) {
+        // Reload the browser modal with new path
+        await this.showBrowser(null, path);
     }
 
-    renderFolders(data) {
-        const listEl = $('#browser-list');
-        if (!listEl) return;
-
-        let html = '';
-
-        // Add parent directory option
-        if (data.parent) {
-            html += `
-                <div class="browser-item parent" data-path="${data.parent}" data-type="parent">
-                    <span>📁 ..</span>
-                </div>
-            `;
-        }
-
-        // Add folders
-        if (data.folders.length === 0) {
-            html += '<div class="loading-placeholder">No folders found</div>';
-        } else {
-            data.folders.forEach(folder => {
-                html += `
-                    <div class="browser-item" data-path="${folder.path}" data-type="folder">
-                        <span>📁 ${folder.name}</span>
-                    </div>
-                `;
-            });
-        }
-
-        listEl.innerHTML = html;
-
-        // Attach click handlers
+    attachBrowserItemListeners() {
+        // Attach click handlers to browser items
         $$('.browser-item').forEach(item => {
-            item.addEventListener('click', (e) => {
+            item.addEventListener('click', async (e) => {
                 const path = e.currentTarget.dataset.path;
-                const type = e.currentTarget.dataset.type;
 
-                if (type === 'parent' || type === 'folder') {
-                    // Navigate into folder
-                    this.loadFolders(path);
+                if (this.mode === 'folder') {
+                    // For folders: navigate on single click, select on double click
+                    if (e.currentTarget.classList.contains('parent')) {
+                        // Navigate to parent
+                        await this.navigateToPath(path);
+                    } else {
+                        // Select folder
+                        this.selectItem(e.currentTarget, path);
+                    }
                 } else {
-                    // Select folder
+                    // For files: select on single click
                     this.selectItem(e.currentTarget, path);
                 }
             });
 
-            // Double-click to select folder and close
-            item.addEventListener('dblclick', (e) => {
+            // Double-click handling
+            item.addEventListener('dblclick', async (e) => {
                 const path = e.currentTarget.dataset.path;
-                this.selectedPath = path;
-                if (this.targetInput) {
-                    this.targetInput.value = path;
-                    this.hideBrowser();
-                }
-            });
-        });
-    }
 
-    async loadFiles(folderPath) {
-        const listEl = $('#browser-list');
-        if (!listEl) return;
-
-        listEl.innerHTML = '<div class="loading-placeholder">Loading...</div>';
-
-        try {
-            const response = await API.get(`/api/browse/files?path=${encodeURIComponent(folderPath)}`);
-
-            if (response.status === 'success') {
-                this.currentPath = response.data.folder;
-                $('#browser-current-path').textContent = this.currentPath;
-
-                this.renderFiles(response.data);
-            }
-        } catch (error) {
-            listEl.innerHTML = `<div class="loading-placeholder">Error: ${error.message}</div>`;
-        }
-    }
-
-    renderFiles(data) {
-        const listEl = $('#browser-list');
-        if (!listEl) return;
-
-        let html = '';
-
-        if (data.files.length === 0) {
-            html = '<div class="loading-placeholder">No Python files found in this folder</div>';
-        } else {
-            data.files.forEach(file => {
-                html += `
-                    <div class="browser-item" data-path="${file.name}" data-type="file">
-                        <span>📄 ${file.name}</span>
-                    </div>
-                `;
-            });
-        }
-
-        listEl.innerHTML = html;
-
-        // Attach click handlers
-        $$('.browser-item').forEach(item => {
-            item.addEventListener('click', (e) => {
-                const filename = e.currentTarget.dataset.path;
-                this.selectItem(e.currentTarget, filename);
-            });
-
-            // Double-click to select and close
-            item.addEventListener('dblclick', (e) => {
-                const filename = e.currentTarget.dataset.path;
-                this.selectedPath = filename;
-                if (this.targetInput) {
-                    this.targetInput.value = filename;
-                    this.hideBrowser();
+                if (this.mode === 'folder' && !e.currentTarget.classList.contains('parent')) {
+                    // Navigate into folder
+                    await this.navigateToPath(path);
+                } else if (this.mode === 'file') {
+                    // Select file and close
+                    this.selectedPath = path;
+                    if (this.targetInput) {
+                        this.targetInput.value = path;
+                        this.hideBrowser();
+                    }
                 }
             });
         });
@@ -233,12 +162,12 @@ class FileBrowser {
 document.addEventListener('DOMContentLoaded', () => {
     window.fileBrowser = new FileBrowser();
 
-    // Wire up browse buttons
-    $('#browse-folder')?.addEventListener('click', () => {
-        window.fileBrowser.openFolderBrowser('service-folder');
-    });
-
-    $('#browse-file')?.addEventListener('click', () => {
-        window.fileBrowser.openFileBrowser('service-entrypoint');
+    // Use event delegation for browse buttons (they're dynamically loaded with modals)
+    document.addEventListener('click', (e) => {
+        if (e.target.id === 'browse-folder' || e.target.closest('#browse-folder')) {
+            window.fileBrowser.openFolderBrowser('service-folder');
+        } else if (e.target.id === 'browse-file' || e.target.closest('#browse-file')) {
+            window.fileBrowser.openFileBrowser('service-entrypoint');
+        }
     });
 });

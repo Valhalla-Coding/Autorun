@@ -1,0 +1,36 @@
+{# File/Folder Browser Modal Component #}
+{# Parameters: browser_type ('folder' or 'file'), current_path (string), parent (string or None), items (list of dicts with name and path) #}
+<div id="browser-modal" class="modal">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="browser-title">{% if browser_type == 'file' %}Browse Files{% else %}Browse Folders{% endif %}</h3>
+            <button class="modal-close-browser" type="button">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="browser-path">
+                <span id="browser-current-path">{{ current_path }}</span>
+            </div>
+            <div id="browser-list" class="browser-list">
+                {% if parent %}
+                <div class="browser-item parent" data-path="{{ parent }}">
+                    📁 ..
+                </div>
+                {% endif %}
+                {% if items %}
+                    {% for item in items %}
+                    <div class="browser-item" data-path="{{ item.path }}">
+                        {% if browser_type == 'file' %}📄{% else %}📁{% endif %} {{ item.name }}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="loading-placeholder">No items found</div>
+                {% endif %}
+            </div>
+        </div>
+        <div class="form-actions">
+            <button type="button" class="btn-secondary modal-close-browser">Cancel</button>
+            <button type="button" id="browser-select" class="btn-primary">Select</button>
+        </div>
+    </div>
+</div>

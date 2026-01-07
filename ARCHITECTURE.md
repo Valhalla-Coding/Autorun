@@ -142,13 +142,40 @@ This ensures CSS variables are available to all components.
 - [x] Service cards now render server-side with Jinja2 templates
 - [x] Auto-refresh every 5 seconds via polling + HTMX event dispatch
 
-## Phase 3: Modal Components (Next Steps)
+## Phase 3 Complete ✅
 
-1. Create `templates/components/modals/service_form.html`
-2. Create `templates/components/modals/delete_confirm.html`
-3. Create `templates/components/modals/file_browser.html`
-4. Add Flask routes for modal rendering
-5. Update JS to load modals via HTMX instead of inline HTML
+- [x] Created `templates/components/modals/service_form.html` - Add/Edit service form modal
+- [x] Created `templates/components/modals/delete_confirm.html` - Delete confirmation modal
+- [x] Created `templates/components/modals/file_browser.html` - File/folder browser modal
+- [x] Added Flask routes for modal rendering:
+  - `/components/modal/service-form?mode=add|edit&service_name=X` - Render service form
+  - `/components/modal/delete-confirm/<service_name>` - Render delete confirmation
+  - `/components/modal/file-browser?type=folder|file&path=X` - Render file browser with listings
+- [x] Updated `management.html`:
+  - Removed all inline modal HTML (reduced from 167 lines to 44 lines)
+  - Added `#modal-container` div for HTMX-loaded modals
+- [x] Refactored `services.js`:
+  - `showModal()` now fetches modal from server via fetch API
+  - `showDeleteModal()` loads delete modal from server
+  - Added `attachModalListeners()` and `attachDeleteModalListeners()` methods
+  - Modals are dynamically inserted and removed from DOM
+  - Event listeners attached after modal loads
+- [x] Refactored `browser.js`:
+  - Removed `renderFolders()` and `renderFiles()` methods
+  - `showBrowser()` now fetches complete modal HTML from server
+  - Browser content (file/folder listings) rendered server-side
+  - Navigation reloads entire modal with new path
+  - Event delegation for browse buttons (works with dynamic modals)
+  - Simplified click handlers using `attachBrowserItemListeners()`
+
+## Benefits of Phase 3
+
+1. **Massive HTML Reduction** - management.html went from 167 lines to 44 lines
+2. **Server-Side Modal Rendering** - All modals built with Jinja2 templates
+3. **Dynamic Loading** - Modals only loaded when needed, reducing initial page size
+4. **Cleaner JS** - No more HTML string templates in JavaScript
+5. **Better Maintainability** - Edit modal HTML in templates, not JS
+6. **Consistent Architecture** - All components (cards + modals) use same pattern
 
 ## Migration Notes
 

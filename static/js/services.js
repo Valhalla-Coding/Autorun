@@ -20,37 +20,10 @@ class ServiceManager {
             this.showModal('add');
         });
 
-        // Modal close buttons
-        $$('.modal-close').forEach(btn => {
-            btn.addEventListener('click', () => this.hideModal());
-        });
-
-        $$('.modal-close-delete').forEach(btn => {
-            btn.addEventListener('click', () => this.hideDeleteModal());
-        });
-
-        // Click outside modal to close
-        $('#service-modal')?.querySelector('.modal-overlay')?.addEventListener('click', () => {
-            this.hideModal();
-        });
-
-        $('#delete-modal')?.querySelector('.modal-overlay')?.addEventListener('click', () => {
-            this.hideDeleteModal();
-        });
-
-        // Service form submit
-        $('#service-form')?.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.handleFormSubmit();
-        });
-
         // System controls
         $('#reload-config')?.addEventListener('click', () => this.reloadConfig());
         $('#daemon-reload')?.addEventListener('click', () => this.daemonReload());
         $('#apply-changes')?.addEventListener('click', () => this.reloadConfig());
-
-        // Delete confirmation
-        $('#confirm-delete')?.addEventListener('click', () => this.confirmDelete());
 
         // Event delegation for service card buttons (since cards are loaded via HTMX)
         document.addEventListener('click', (e) => {
@@ -131,67 +104,120 @@ class ServiceManager {
         $('#footer-info').textContent = `${data.total} services | ${data.running} running`;
     }
 
-    showModal(mode, service = null) {
-        const modal = $('#service-modal');
-        const form = $('#service-form');
-        const title = $('#modal-title');
+    async showModal(mode, service = null) {
+        const container = $('#modal-container');
+        if (!container) return;
 
-        if (!modal || !form) return;
-
-        // Reset form
-        form.reset();
-
-        if (mode === 'add') {
-            title.textContent = 'Add Service';
-            // Set defaults
-            $('#service-entrypoint').value = 'run.py';
-            $('#service-restart').value = 'always';
-            $('#service-enabled').checked = true;
-        } else if (mode === 'edit' && service) {
-            title.textContent = 'Edit Service';
-            const config = service.config;
-
-            // Populate form
-            $('#service-name').value = config.name;
-            $('#service-name').disabled = true; // Can't change name
-            $('#service-folder').value = config.folder;
-            $('#service-entrypoint').value = config.entrypoint;
-            $('#service-port').value = config.port || '';
-            $('#service-web-interface').checked = config.web_interface;
-            $('#service-restart').value = config.auto_restart;
-            $('#service-description').value = config.description || '';
-            $('#service-enabled').checked = config.enabled;
-
+        // Build URL with query params
+        let url = `/components/modal/service-form?mode=${mode}`;
+        if (mode === 'edit' && service) {
+            url += `&service_name=${service.name}`;
             this.selectedService = service.name;
         }
 
-        modal.classList.remove('hidden');
+        try {
+            // Fetch modal HTML from server
+            const response = await fetch(url);
+            const html = await response.text();
+
+            // Insert modal into container
+            container.innerHTML = html;
+
+            // Show modal (remove hidden class if present)
+            const modal = $('#service-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+
+                // Attach event listeners
+                this.attachModalListeners();
+            }
+        } catch (error) {
+            notify.error(`Failed to load modal: ${error.message}`);
+        }
     }
 
     hideModal() {
         const modal = $('#service-modal');
         if (modal) {
             modal.classList.add('hidden');
-            $('#service-name').disabled = false; // Re-enable for next add
+            // Clear modal container after animation
+            setTimeout(() => {
+                $('#modal-container').innerHTML = '';
+            }, 300);
             this.selectedService = null;
         }
     }
 
-    showDeleteModal(serviceName) {
-        const modal = $('#delete-modal');
-        if (!modal) return;
+    attachModalListeners() {
+        // Modal close buttons
+        $$('.modal-close').forEach(btn => {
+            btn.addEventListener('click', () => this.hideModal());
+        });
 
-        $('#delete-service-name').textContent = serviceName;
+        // Click outside modal to close
+        $('#service-modal')?.querySelector('.modal-overlay')?.addEventListener('click', () => {
+            this.hideModal();
+        });
+
+        // Service form submit
+        $('#service-form')?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleFormSubmit();
+        });
+    }
+
+    async showDeleteModal(serviceName) {
+        const container = $('#modal-container');
+        if (!container) return;
+
         this.selectedService = serviceName;
-        modal.classList.remove('hidden');
+
+        try {
+            // Fetch delete modal HTML from server
+            const response = await fetch(`/components/modal/delete-confirm/${serviceName}`);
+            const html = await response.text();
+
+            // Insert modal into container
+            container.innerHTML = html;
+
+            // Show modal
+            const modal = $('#delete-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+
+                // Attach event listeners
+                this.attachDeleteModalListeners();
+            }
+        } catch (error) {
+            notify.error(`Failed to load delete modal: ${error.message}`);
+        }
     }
 
     hideDeleteModal() {
         const modal = $('#delete-modal');
         if (modal) {
             modal.classList.add('hidden');
+            // Clear modal container after animation
+            setTimeout(() => {
+                $('#modal-container').innerHTML = '';
+            }, 300);
             this.selectedService = null;
         }
+    }
+
+    attachDeleteModalListeners() {
+        // Modal close buttons
+        $$('.modal-close-delete').forEach(btn => {
+            btn.addEventListener('click', () => this.hideDeleteModal());
+        });
+
+        // Click outside modal to close
+        $('#delete-modal')?.querySelector('.modal-overlay')?.addEventListener('click', () => {
+            this.hideDeleteModal();
+        });
+
+        // Delete confirmation
+        $('#confirm-delete')?.addEventListener('click', () => this.confirmDelete());
     }
 
     async handleFormSubmit() {

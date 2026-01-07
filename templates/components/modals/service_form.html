@@ -1,0 +1,93 @@
+{# Service Add/Edit Form Modal Component #}
+{# Parameters: mode ('add' or 'edit'), service (dict with config, optional for edit mode) #}
+<div id="service-modal" class="modal">
+    <div class="modal-overlay"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modal-title">{% if mode == 'edit' %}Edit Service{% else %}Add Service{% endif %}</h3>
+            <button class="modal-close" type="button">&times;</button>
+        </div>
+        <form id="service-form">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="service-name">Name *</label>
+                    <input type="text" id="service-name" name="name" required
+                           placeholder="my-service" pattern="[a-z0-9-]+"
+                           title="Use lowercase letters, numbers, and hyphens only"
+                           value="{{ service.name if service else '' }}"
+                           {% if mode == 'edit' %}disabled{% endif %}>
+                    <small>Use lowercase letters, numbers, and hyphens</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="service-folder">Folder *</label>
+                    <div class="input-with-button">
+                        <input type="text" id="service-folder" name="folder" required
+                               placeholder="/home/user/myapp"
+                               value="{{ service.config.folder if service else '' }}">
+                        <button type="button" id="browse-folder" class="btn-icon" title="Browse folders">📁</button>
+                    </div>
+                    <small>Full path to service directory</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="service-entrypoint">Entrypoint *</label>
+                    <div class="input-with-button">
+                        <input type="text" id="service-entrypoint" name="entrypoint"
+                               value="{{ service.config.entrypoint if service else 'run.py' }}"
+                               required placeholder="run.py">
+                        <button type="button" id="browse-file" class="btn-icon" title="Browse files">📄</button>
+                    </div>
+                    <small>Python file to execute</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="service-port">Port</label>
+                    <input type="number" id="service-port" name="port"
+                           min="1" max="65535" placeholder="5001"
+                           value="{{ service.config.port if service and service.config.port else '' }}">
+                    <small>Optional: Port for web services</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="service-restart">Auto Restart</label>
+                    <select id="service-restart" name="auto_restart">
+                        <option value="always" {% if service and service.config.auto_restart == 'always' %}selected{% elif not service %}selected{% endif %}>Always</option>
+                        <option value="on-failure" {% if service and service.config.auto_restart == 'on-failure' %}selected{% endif %}>On Failure</option>
+                        <option value="no" {% if service and service.config.auto_restart == 'no' %}selected{% endif %}>No</option>
+                    </select>
+                    <small>When to automatically restart service</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="service-description">Description</label>
+                    <textarea id="service-description" name="description"
+                              rows="2" placeholder="Brief description of the service">{{ service.config.description if service and service.config.description else '' }}</textarea>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="service-web-interface" name="web_interface"
+                               {% if service and service.config.web_interface %}checked{% endif %}>
+                        <span>Web Interface</span>
+                    </label>
+                    <small>Service provides a web interface</small>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="service-enabled" name="enabled"
+                               {% if service and service.config.enabled %}checked{% elif not service %}checked{% endif %}>
+                        <span>Enabled</span>
+                    </label>
+                    <small>Enable service to start on boot</small>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn-secondary modal-close">Cancel</button>
+                <button type="submit" class="btn-primary">Save Service</button>
+            </div>
+        </form>
+    </div>
+</div>
