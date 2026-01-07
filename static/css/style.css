@@ -408,6 +408,11 @@ body {
 /* Form action buttons - styled identically except for background */
 .btn-primary, .btn-danger {
     color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: 500;
 }
 
 .btn-primary {
