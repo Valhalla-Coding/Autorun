@@ -138,7 +138,7 @@ def write_service_file(service: ServiceConfig, user: str, dry_run: bool = False)
     try:
         # Write using sudo tee
         process = subprocess.run(
-            ["sudo", "tee", str(service_path)],
+            ["sudo", "/usr/bin/tee", str(service_path)],
             input=content,
             capture_output=True,
             text=True,
@@ -170,7 +170,7 @@ def delete_service_file(service_name: str) -> None:
         return  # Already deleted
 
     try:
-        result = execute_with_sudo(["rm", "-f", str(service_path)])
+        result = execute_with_sudo(["/usr/bin/rm", "-f", str(service_path)])
 
         if result.returncode != 0:
             raise SystemdOperationError(f"Failed to delete service file: {result.stderr}")
@@ -189,7 +189,7 @@ def daemon_reload() -> subprocess.CompletedProcess:
     Raises:
         SystemdOperationError: If daemon-reload fails
     """
-    result = execute_with_sudo(["systemctl", "daemon-reload"])
+    result = execute_with_sudo(["/usr/bin/systemctl", "daemon-reload"])
 
     if result.returncode != 0:
         raise SystemdOperationError(f"daemon-reload failed: {result.stderr}")
@@ -208,7 +208,7 @@ def enable_service(service_name: str, now: bool = True) -> subprocess.CompletedP
     Returns:
         CompletedProcess object
     """
-    cmd = ["systemctl", "enable"]
+    cmd = ["/usr/bin/systemctl", "enable"]
     if now:
         cmd.append("--now")
     cmd.append(f"autorun-{service_name}.service")
@@ -232,7 +232,7 @@ def disable_service(service_name: str, now: bool = True) -> subprocess.Completed
     Returns:
         CompletedProcess object
     """
-    cmd = ["systemctl", "disable"]
+    cmd = ["/usr/bin/systemctl", "disable"]
     if now:
         cmd.append("--now")
     cmd.append(f"autorun-{service_name}.service")
@@ -255,7 +255,7 @@ def start_service(service_name: str) -> subprocess.CompletedProcess:
     Returns:
         CompletedProcess object
     """
-    result = execute_with_sudo(["systemctl", "start", f"autorun-{service_name}.service"])
+    result = execute_with_sudo(["/usr/bin/systemctl", "start", f"autorun-{service_name}.service"])
 
     if result.returncode != 0:
         raise SystemdOperationError(f"Failed to start service: {result.stderr}")
@@ -273,7 +273,7 @@ def stop_service(service_name: str) -> subprocess.CompletedProcess:
     Returns:
         CompletedProcess object
     """
-    result = execute_with_sudo(["systemctl", "stop", f"autorun-{service_name}.service"])
+    result = execute_with_sudo(["/usr/bin/systemctl", "stop", f"autorun-{service_name}.service"])
 
     if result.returncode != 0:
         raise SystemdOperationError(f"Failed to stop service: {result.stderr}")
@@ -291,7 +291,7 @@ def restart_service(service_name: str) -> subprocess.CompletedProcess:
     Returns:
         CompletedProcess object
     """
-    result = execute_with_sudo(["systemctl", "restart", f"autorun-{service_name}.service"])
+    result = execute_with_sudo(["/usr/bin/systemctl", "restart", f"autorun-{service_name}.service"])
 
     if result.returncode != 0:
         raise SystemdOperationError(f"Failed to restart service: {result.stderr}")
@@ -310,7 +310,7 @@ def is_service_active(service_name: str) -> bool:
         True if active, False otherwise
     """
     result = subprocess.run(
-        ["systemctl", "is-active", f"autorun-{service_name}.service"],
+        ["/usr/bin/systemctl", "is-active", f"autorun-{service_name}.service"],
         capture_output=True,
         text=True
     )
@@ -329,7 +329,7 @@ def is_service_enabled(service_name: str) -> bool:
         True if enabled, False otherwise
     """
     result = subprocess.run(
-        ["systemctl", "is-enabled", f"autorun-{service_name}.service"],
+        ["/usr/bin/systemctl", "is-enabled", f"autorun-{service_name}.service"],
         capture_output=True,
         text=True
     )
@@ -355,7 +355,7 @@ def get_service_status(service_name: str) -> Dict[str, any]:
     """
     # Get detailed status
     result = subprocess.run(
-        ["systemctl", "show", f"autorun-{service_name}.service", "--no-pager"],
+        ["/usr/bin/systemctl", "show", f"autorun-{service_name}.service", "--no-pager"],
         capture_output=True,
         text=True
     )
