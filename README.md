@@ -468,8 +468,8 @@ MIT License - see LICENSE file for details
 ## Support
 
 For issues and questions:
-- GitHub Issues: https://github.com/yourusername/autorun/issues
-- Documentation: https://github.com/yourusername/autorun/wiki
+- GitHub Issues: https://github.com/Valhalla-Coding/autorun/issues
+- Documentation: https://github.com/Valhalla-Coding/autorun/wiki
 
 ## Credits
 

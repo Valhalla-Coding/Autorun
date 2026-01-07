@@ -76,7 +76,7 @@ echo "Creating AutoRun systemd service..."
 sudo tee /etc/systemd/system/autorun.service > /dev/null <<EOF
 [Unit]
 Description=AutoRun v2 Service Manager
-Documentation=https://github.com/yourusername/autorun
+Documentation=https://github.com/Valhalla-Coding/autorun
 After=network.target
 
 [Service]
