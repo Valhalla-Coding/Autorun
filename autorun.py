@@ -155,6 +155,79 @@ def serve_static(filename):
 
 
 # ============================================================================
+# Component Rendering Routes (HTMX)
+# ============================================================================
+
+@app.route('/components/service-card/<service_name>')
+def render_service_card(service_name: str):
+    """
+    Render a single service card component
+
+    Args:
+        service_name: Name of the service
+
+    Returns:
+        Rendered HTML fragment for HTMX
+    """
+    try:
+        svc = find_service(service_name)
+        status_info = systemd_manager.get_service_status(service_name)
+
+        service_data = {
+            "name": svc.name,
+            "config": svc.to_dict(),
+            **status_info
+        }
+
+        return render_template('components/service_card.html', service=service_data)
+    except Exception as e:
+        logger.error(f"Error rendering service card for '{service_name}': {e}")
+        # Return error card
+        return f'''
+        <div class="service-card status-error" data-service="{service_name}">
+            <div class="card-body">
+                <p class="service-error">Failed to load service: {str(e)}</p>
+            </div>
+        </div>
+        ''', 500
+
+
+@app.route('/components/services-grid')
+def render_services_grid():
+    """
+    Render all service cards for the services grid
+
+    Returns:
+        Rendered HTML fragments for all services
+    """
+    services_html = []
+
+    for svc in current_config.services:
+        try:
+            status_info = systemd_manager.get_service_status(svc.name)
+            service_data = {
+                "name": svc.name,
+                "config": svc.to_dict(),
+                **status_info
+            }
+
+            card_html = render_template('components/service_card.html', service=service_data)
+            services_html.append(card_html)
+        except Exception as e:
+            logger.error(f"Error rendering card for service '{svc.name}': {e}")
+            # Add error card
+            services_html.append(f'''
+            <div class="service-card status-error" data-service="{svc.name}">
+                <div class="card-body">
+                    <p class="service-error">Failed to load {svc.name}: {str(e)}</p>
+                </div>
+            </div>
+            ''')
+
+    return '\n'.join(services_html)
+
+
+# ============================================================================
 # Service Management API
 # ============================================================================
 

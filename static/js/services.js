@@ -9,7 +9,7 @@ class ServiceManager {
     }
 
     async init() {
-        await this.loadServices();
+        await this.loadSystemStats();
         this.setupEventListeners();
         this.startPolling();
     }
@@ -51,9 +51,45 @@ class ServiceManager {
 
         // Delete confirmation
         $('#confirm-delete')?.addEventListener('click', () => this.confirmDelete());
+
+        // Event delegation for service card buttons (since cards are loaded via HTMX)
+        document.addEventListener('click', (e) => {
+            const button = e.target.closest('[data-action]');
+            if (!button) return;
+
+            const card = button.closest('.service-card');
+            if (!card) return;
+
+            const serviceName = card.dataset.service;
+            const action = button.dataset.action;
+
+            switch (action) {
+                case 'start':
+                    this.startService(serviceName);
+                    break;
+                case 'stop':
+                    this.stopService(serviceName);
+                    break;
+                case 'restart':
+                    this.restartService(serviceName);
+                    break;
+                case 'edit':
+                    this.editService(serviceName);
+                    break;
+                case 'delete':
+                    this.showDeleteModal(serviceName);
+                    break;
+            }
+        });
     }
 
-    async loadServices() {
+    // Trigger HTMX to reload service cards
+    triggerServiceUpdate() {
+        document.body.dispatchEvent(new CustomEvent('serviceUpdate'));
+    }
+
+    // Load system stats only (services are loaded via HTMX)
+    async loadSystemStats() {
         if (this.isLoading) return;
         this.isLoading = true;
 
@@ -62,7 +98,6 @@ class ServiceManager {
 
             if (response.status === 'success') {
                 this.services = response.data.services;
-                this.renderServices();
                 this.updateSystemStats(response.data);
             }
         } catch (error) {
@@ -72,81 +107,18 @@ class ServiceManager {
         }
     }
 
-    renderServices() {
-        const grid = $('#services-grid');
-        if (!grid) return;
+    // Find service for editing (loads fresh data from API)
+    async editService(serviceName) {
+        try {
+            const response = await API.get(`/api/services/${serviceName}`);
 
-        if (this.services.length === 0) {
-            grid.innerHTML = '<div class="loading-placeholder">No services configured. Click "+ Add Service" to get started.</div>';
-            return;
+            if (response.status === 'success') {
+                const service = response.data;
+                this.showModal('edit', service);
+            }
+        } catch (error) {
+            notify.error(`Failed to load service: ${error.message}`);
         }
-
-        grid.innerHTML = this.services.map(service => this.createServiceCard(service)).join('');
-
-        // Attach event listeners to action buttons
-        $$('.service-card').forEach(card => {
-            const serviceName = card.dataset.service;
-
-            card.querySelector('[data-action="start"]')?.addEventListener('click', () => {
-                this.startService(serviceName);
-            });
-
-            card.querySelector('[data-action="stop"]')?.addEventListener('click', () => {
-                this.stopService(serviceName);
-            });
-
-            card.querySelector('[data-action="restart"]')?.addEventListener('click', () => {
-                this.restartService(serviceName);
-            });
-
-            card.querySelector('[data-action="edit"]')?.addEventListener('click', () => {
-                this.showModal('edit', this.findService(serviceName));
-            });
-
-            card.querySelector('[data-action="delete"]')?.addEventListener('click', () => {
-                this.showDeleteModal(serviceName);
-            });
-        });
-    }
-
-    createServiceCard(service) {
-        const status = service.status || 'unknown';
-        const config = service.config;
-
-        return `
-            <div class="service-card status-${status}" data-service="${service.name}">
-                <div class="card-header">
-                    <div class="card-title">
-                        <span class="status-indicator status-${status}"></span>
-                        <h3>${service.name}</h3>
-                    </div>
-                    <span class="badge badge-${status}">${status.toUpperCase()}</span>
-                </div>
-                <div class="card-body">
-                    <p class="service-description">${config.description || 'No description'}</p>
-                    <div class="service-info">
-                        <span class="info-item">📁 ${config.folder}</span>
-                        ${config.port ? `<span class="info-item">🌐 Port ${config.port}</span>` : ''}
-                        ${service.pid ? `<span class="info-item">🔢 PID ${service.pid}</span>` : ''}
-                        ${service.uptime && service.uptime !== 'N/A' ? `<span class="info-item">⏱️ ${service.uptime}</span>` : ''}
-                        ${service.memory_mb > 0 ? `<span class="info-item">💾 ${formatMemory(service.memory_mb)}</span>` : ''}
-                    </div>
-                    ${service.status === 'failed' && service.error_message ? `
-                    <div class="service-error">
-                        <span class="error-label">ERROR${service.exit_code ? ` (Exit code: ${service.exit_code})` : ''}:</span>
-                        <span class="error-message">${service.error_message}</span>
-                    </div>
-                    ` : ''}
-                </div>
-                <div class="card-actions">
-                    <button class="btn-icon" data-action="start" ${status === 'running' ? 'disabled' : ''} title="Start">▶️</button>
-                    <button class="btn-icon" data-action="stop" ${status !== 'running' ? 'disabled' : ''} title="Stop">⏹️</button>
-                    <button class="btn-icon" data-action="restart" ${status !== 'running' ? 'disabled' : ''} title="Restart">🔄</button>
-                    <button class="btn-icon" data-action="edit" title="Edit">✏️</button>
-                    <button class="btn-icon btn-danger" data-action="delete" title="Delete">🗑️</button>
-                </div>
-            </div>
-        `;
     }
 
     updateSystemStats(data) {
@@ -157,10 +129,6 @@ class ServiceManager {
 
         // Update footer
         $('#footer-info').textContent = `${data.total} services | ${data.running} running`;
-    }
-
-    findService(name) {
-        return this.services.find(s => s.name === name);
     }
 
     showModal(mode, service = null) {
@@ -254,7 +222,8 @@ class ServiceManager {
             }
 
             this.hideModal();
-            await this.loadServices();
+            await this.loadSystemStats();
+            this.triggerServiceUpdate();
         } catch (error) {
             notify.error(`Failed to save service: ${error.message}`);
         }
@@ -267,7 +236,8 @@ class ServiceManager {
             await API.delete(`/api/services/${this.selectedService}`);
             notify.success(`Service '${this.selectedService}' deleted successfully`);
             this.hideDeleteModal();
-            await this.loadServices();
+            await this.loadSystemStats();
+            this.triggerServiceUpdate();
         } catch (error) {
             notify.error(`Failed to delete service: ${error.message}`);
         }
@@ -277,7 +247,8 @@ class ServiceManager {
         try {
             await API.post(`/api/services/${name}/start`);
             notify.success(`Service '${name}' started`);
-            await this.loadServices();
+            await this.loadSystemStats();
+            this.triggerServiceUpdate();
         } catch (error) {
             notify.error(`Failed to start service: ${error.message}`);
         }
@@ -287,7 +258,8 @@ class ServiceManager {
         try {
             await API.post(`/api/services/${name}/stop`);
             notify.success(`Service '${name}' stopped`);
-            await this.loadServices();
+            await this.loadSystemStats();
+            this.triggerServiceUpdate();
         } catch (error) {
             notify.error(`Failed to stop service: ${error.message}`);
         }
@@ -297,7 +269,8 @@ class ServiceManager {
         try {
             await API.post(`/api/services/${name}/restart`);
             notify.success(`Service '${name}' restarted`);
-            await this.loadServices();
+            await this.loadSystemStats();
+            this.triggerServiceUpdate();
         } catch (error) {
             notify.error(`Failed to restart service: ${error.message}`);
         }
@@ -307,7 +280,8 @@ class ServiceManager {
         try {
             await API.post('/api/system/reload');
             notify.success('Configuration reloaded successfully');
-            await this.loadServices();
+            await this.loadSystemStats();
+            this.triggerServiceUpdate();
         } catch (error) {
             notify.error(`Failed to reload configuration: ${error.message}`);
         }
@@ -323,9 +297,10 @@ class ServiceManager {
     }
 
     startPolling() {
-        // Refresh service list every 5 seconds
+        // Refresh service status every 5 seconds
         this.pollInterval = setInterval(() => {
-            this.loadServices();
+            this.loadSystemStats();
+            this.triggerServiceUpdate();
         }, 5000);
     }
 

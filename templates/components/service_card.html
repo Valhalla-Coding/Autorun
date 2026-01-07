@@ -1,0 +1,42 @@
+{# Service Card Component #}
+{# Parameters: service (dict with name, config, status, etc.) #}
+<div class="service-card status-{{ service.status }}" data-service="{{ service.name }}">
+    <div class="card-header">
+        <div class="card-title">
+            <span class="status-indicator status-{{ service.status }}"></span>
+            <h3>{{ service.name }}</h3>
+        </div>
+        <span class="badge badge-{{ service.status }}">{{ service.status.upper() }}</span>
+    </div>
+    <div class="card-body">
+        <p class="service-description">{{ service.config.description or 'No description' }}</p>
+        <div class="service-info">
+            <span class="info-item">📁 {{ service.config.folder }}</span>
+            {% if service.config.port %}
+            <span class="info-item">🌐 Port {{ service.config.port }}</span>
+            {% endif %}
+            {% if service.pid %}
+            <span class="info-item">🔢 PID {{ service.pid }}</span>
+            {% endif %}
+            {% if service.uptime and service.uptime != 'N/A' %}
+            <span class="info-item">⏱️ {{ service.uptime }}</span>
+            {% endif %}
+            {% if service.memory_mb > 0 %}
+            <span class="info-item">💾 {{ "%.1f"|format(service.memory_mb) }} MB</span>
+            {% endif %}
+        </div>
+        {% if service.status == 'failed' and service.error_message %}
+        <div class="service-error">
+            <span class="error-label">ERROR{% if service.exit_code %} (Exit code: {{ service.exit_code }}){% endif %}:</span>
+            <span class="error-message">{{ service.error_message }}</span>
+        </div>
+        {% endif %}
+    </div>
+    <div class="card-actions">
+        <button class="btn-icon" data-action="start" {% if service.status == 'running' %}disabled{% endif %} title="Start">▶️</button>
+        <button class="btn-icon" data-action="stop" {% if service.status != 'running' %}disabled{% endif %} title="Stop">⏹️</button>
+        <button class="btn-icon" data-action="restart" {% if service.status != 'running' %}disabled{% endif %} title="Restart">🔄</button>
+        <button class="btn-icon" data-action="edit" title="Edit">✏️</button>
+        <button class="btn-icon btn-danger" data-action="delete" title="Delete">🗑️</button>
+    </div>
+</div>

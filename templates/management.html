@@ -30,8 +30,11 @@
             <h2>Services</h2>
             <button id="add-service" class="btn-primary">+ Add Service</button>
         </div>
-        <div id="services-grid" class="services-grid">
-            <!-- Service cards will be inserted here by JavaScript -->
+        <div id="services-grid" class="services-grid"
+             hx-get="/components/services-grid"
+             hx-trigger="load, serviceUpdate from:body"
+             hx-swap="innerHTML">
+            <!-- Service cards will be loaded here by HTMX -->
             <div class="loading-placeholder">Loading services...</div>
         </div>
     </section>

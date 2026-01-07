@@ -125,13 +125,30 @@ This ensures CSS variables are available to all components.
 - [x] Updated base.html to load component CSS
 - [x] Created templates/components directory
 
-## Phase 2: Component Templates (Next Steps)
+## Phase 2 Complete ✅
 
-1. Create `templates/components/service_card.html`
-2. Create Flask route: `/api/service/<name>/card`
-3. Integrate HTMX for dynamic updates
-4. Move modals to component templates
-5. Replace JS rendering with server-side templates
+- [x] Created `templates/components/service_card.html` - Server-side service card template
+- [x] Added Flask routes for component rendering:
+  - `/components/service-card/<service_name>` - Render single card
+  - `/components/services-grid` - Render all cards
+- [x] Integrated HTMX (v1.9.10) for dynamic HTML updates
+- [x] Updated `management.html` to use HTMX attributes for automatic loading
+- [x] Refactored `services.js`:
+  - Removed `createServiceCard()` and `renderServices()` methods
+  - Replaced with `triggerServiceUpdate()` to dispatch HTMX events
+  - Changed from direct rendering to event-based updates
+  - Event delegation for service card buttons (works with dynamically loaded content)
+  - Separated system stats loading from service card rendering
+- [x] Service cards now render server-side with Jinja2 templates
+- [x] Auto-refresh every 5 seconds via polling + HTMX event dispatch
+
+## Phase 3: Modal Components (Next Steps)
+
+1. Create `templates/components/modals/service_form.html`
+2. Create `templates/components/modals/delete_confirm.html`
+3. Create `templates/components/modals/file_browser.html`
+4. Add Flask routes for modal rendering
+5. Update JS to load modals via HTMX instead of inline HTML
 
 ## Migration Notes
 
