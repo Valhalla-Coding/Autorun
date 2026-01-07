@@ -131,6 +131,12 @@ class ServiceManager {
                         ${service.uptime && service.uptime !== 'N/A' ? `<span class="info-item">⏱️ ${service.uptime}</span>` : ''}
                         ${service.memory_mb > 0 ? `<span class="info-item">💾 ${formatMemory(service.memory_mb)}</span>` : ''}
                     </div>
+                    ${service.status === 'failed' && service.error_message ? `
+                    <div class="service-error">
+                        <span class="error-label">ERROR${service.exit_code ? ` (Exit code: ${service.exit_code})` : ''}:</span>
+                        <span class="error-message">${service.error_message}</span>
+                    </div>
+                    ` : ''}
                 </div>
                 <div class="card-actions">
                     <button class="btn-icon" data-action="start" ${status === 'running' ? 'disabled' : ''} title="Start">▶️</button>

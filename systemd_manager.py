@@ -354,6 +354,8 @@ def get_service_status(service_name: str) -> Dict[str, any]:
         - pid: Optional[int] (main process ID)
         - uptime: str (human-readable uptime)
         - memory_mb: float (memory usage in MB)
+        - exit_code: Optional[int] (exit code if failed)
+        - error_message: Optional[str] (last error log entry if failed)
     """
     # Get detailed status
     result = subprocess.run(
@@ -422,13 +424,55 @@ def get_service_status(service_name: str) -> Dict[str, any]:
         except ValueError:
             memory_mb = 0.0
 
+    # Capture error information if service failed
+    exit_code = None
+    error_message = None
+
+    if status == "failed":
+        # Get exit code
+        exec_main_status = props.get("ExecMainStatus", "0")
+        try:
+            exit_code = int(exec_main_status) if exec_main_status else None
+        except ValueError:
+            exit_code = None
+
+        # Get last 10 log lines to find error
+        try:
+            log_result = subprocess.run(
+                ["/usr/bin/journalctl", "-u", f"autorun-{service_name}.service",
+                 "-n", "10", "--no-pager", "-o", "cat"],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+
+            # Search for error keywords in reverse order (most recent first)
+            if log_result.returncode == 0:
+                error_keywords = ['error', 'exception', 'failed', 'errno', 'traceback']
+                for line in reversed(log_result.stdout.splitlines()):
+                    if any(keyword in line.lower() for keyword in error_keywords):
+                        error_message = line.strip()
+                        break
+
+                # If no keyword match, use the last non-empty line
+                if not error_message:
+                    for line in reversed(log_result.stdout.splitlines()):
+                        if line.strip():
+                            error_message = line.strip()
+                            break
+        except Exception:
+            # If log retrieval fails, continue without error message
+            pass
+
     return {
         "status": status,
         "active": active_state == "active",
         "enabled": unit_file_state == "enabled",
         "pid": pid,
         "uptime": uptime,
-        "memory_mb": round(memory_mb, 2)
+        "memory_mb": round(memory_mb, 2),
+        "exit_code": exit_code,
+        "error_message": error_message
     }
 
 
