@@ -42,3 +42,4 @@ autorun.yaml
 
 # User-specific service files
 *.service
+.gitignore
