@@ -46,6 +46,9 @@ class ServiceManager {
                 case 'restart':
                     this.restartService(serviceName);
                     break;
+                case 'pull':
+                    this.pullService(serviceName);
+                    break;
                 case 'edit':
                     this.editService(serviceName);
                     break;
@@ -164,6 +167,71 @@ class ServiceManager {
             e.preventDefault();
             this.handleFormSubmit();
         });
+
+        // Source toggle buttons (add mode only)
+        $$('.source-btn').forEach(btn => {
+            btn.addEventListener('click', () => this.setSourceMode(btn.dataset.source));
+        });
+
+        // GitHub URL auto-fill (debounced)
+        $('#service-github-url')?.addEventListener('input', (e) => {
+            clearTimeout(this._githubFetchTimeout);
+            this._githubFetchTimeout = setTimeout(() => {
+                this.fetchGithubInfo(e.target.value.trim());
+            }, 600);
+        });
+    }
+
+    setSourceMode(mode) {
+        $$('.source-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.source === mode);
+        });
+
+        const githubSection = $('#github-url-section');
+        if (githubSection) {
+            githubSection.style.display = mode === 'github' ? '' : 'none';
+        }
+
+        if (mode === 'folder') {
+            const githubInput = $('#service-github-url');
+            if (githubInput) githubInput.value = '';
+            const statusEl = $('#github-status');
+            if (statusEl) statusEl.textContent = 'Paste a GitHub repository URL to auto-fill details';
+        }
+    }
+
+    async fetchGithubInfo(url) {
+        if (!url) return;
+
+        const match = url.match(/github\.com\/([^/]+)\/([^/\s]+)/);
+        if (!match) return;
+
+        const [, owner, repo] = match;
+        const repoSlug = repo.replace(/\.git$/, '');
+        const statusEl = $('#github-status');
+
+        if (statusEl) statusEl.textContent = 'Fetching repo info...';
+
+        try {
+            const res = await fetch(`https://api.github.com/repos/${owner}/${repoSlug}`);
+            if (!res.ok) throw new Error('Repo not found');
+
+            const data = await res.json();
+
+            const nameInput = $('#service-name');
+            if (nameInput && !nameInput.value) {
+                nameInput.value = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+            }
+
+            const descInput = $('#service-description');
+            if (descInput && !descInput.value && data.description) {
+                descInput.value = data.description;
+            }
+
+            if (statusEl) statusEl.textContent = `✓ Found: ${data.full_name}`;
+        } catch {
+            if (statusEl) statusEl.textContent = 'Could not fetch repo info — check the URL';
+        }
     }
 
     async showDeleteModal(serviceName) {
@@ -232,7 +300,9 @@ class ServiceManager {
             description: formData.get('description') || '',
             enabled: formData.get('enabled') === 'on',
             environment: {},
-            depends_on: []
+            depends_on: [],
+            github_url: formData.get('github_url') || null,
+            auto_update: formData.get('auto_update') === 'on'
         };
 
         try {
@@ -288,6 +358,18 @@ class ServiceManager {
             this.triggerServiceUpdate();
         } catch (error) {
             notify.error(`Failed to stop service: ${error.message}`);
+        }
+    }
+
+    async pullService(name) {
+        try {
+            notify.info?.(`Pulling latest for '${name}'...`);
+            await API.post(`/api/services/${name}/pull`);
+            notify.success(`Service '${name}' pulled and restarted`);
+            await this.loadSystemStats();
+            this.triggerServiceUpdate();
+        } catch (error) {
+            notify.error(`Pull failed for '${name}': ${error.message}`);
         }
     }
 

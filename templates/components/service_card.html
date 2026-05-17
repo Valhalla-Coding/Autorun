@@ -12,6 +12,9 @@
         <p class="service-description">{{ service.config.description or 'No description' }}</p>
         <div class="service-info">
             <span class="info-item">📁 {{ service.config.folder }}</span>
+            {% if service.config.github_url %}
+            <span class="info-item">🐙 GitHub{% if service.config.auto_update %} · Auto-update{% endif %}</span>
+            {% endif %}
             {% if service.config.port %}
             <span class="info-item">🌐 Port {{ service.config.port }}</span>
             {% endif %}
@@ -36,6 +39,9 @@
         <button class="btn-icon" data-action="start" {% if service.status == 'running' %}disabled{% endif %} title="Start">▶️</button>
         <button class="btn-icon" data-action="stop" {% if service.status != 'running' %}disabled{% endif %} title="Stop">⏹️</button>
         <button class="btn-icon" data-action="restart" {% if service.status != 'running' %}disabled{% endif %} title="Restart">🔄</button>
+        {% if service.config.github_url %}
+        <button class="btn-icon" data-action="pull" title="Pull latest from GitHub">⬆️</button>
+        {% endif %}
         <button class="btn-icon" data-action="edit" title="Edit">✏️</button>
         <button class="btn-icon btn-danger" data-action="delete" title="Delete">🗑️</button>
     </div>

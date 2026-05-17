@@ -8,6 +8,27 @@
             <button class="modal-close" type="button">&times;</button>
         </div>
         <form id="service-form">
+            {% if mode == 'add' %}
+            <div class="source-toggle-wrapper">
+                <button type="button" class="source-btn active" data-source="folder">📁 Local Folder</button>
+                <button type="button" class="source-btn" data-source="github">🐙 GitHub Repo</button>
+            </div>
+            <div id="github-url-section" class="github-url-section" style="display:none">
+                <div class="form-group">
+                    <label for="service-github-url">GitHub URL</label>
+                    <input type="url" id="service-github-url" name="github_url"
+                           placeholder="https://github.com/user/repo">
+                    <small id="github-status">Paste a GitHub repository URL to auto-fill details</small>
+                </div>
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="service-auto-update" name="auto_update">
+                        <span>Auto Update</span>
+                    </label>
+                    <small>Stop, pull latest commits, and restart when a new push is detected (checked every 5 min)</small>
+                </div>
+            </div>
+            {% endif %}
             <div class="form-grid">
                 <div class="form-group">
                     <label for="service-name">Name *</label>
@@ -64,6 +85,24 @@
                     <textarea id="service-description" name="description"
                               rows="2" placeholder="Brief description of the service">{{ service.config.description if service and service.config.description else '' }}</textarea>
                 </div>
+
+                {% if mode == 'edit' and service and service.config.github_url %}
+                <div class="form-group">
+                    <label>GitHub Repo</label>
+                    <div class="github-readonly">🐙 {{ service.config.github_url }}</div>
+                    {% if service.config.last_commit_sha %}
+                    <small>Last pulled: {{ service.config.last_commit_sha[:7] }}</small>
+                    {% endif %}
+                </div>
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" id="service-auto-update" name="auto_update"
+                               {% if service.config.auto_update %}checked{% endif %}>
+                        <span>Auto Update</span>
+                    </label>
+                    <small>Stop, pull latest commits, and restart when a new push is detected</small>
+                </div>
+                {% endif %}
 
                 <div class="form-group checkbox-group">
                     <label>

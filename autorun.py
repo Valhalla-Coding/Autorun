@@ -8,9 +8,15 @@ from flask import Flask, jsonify, request, render_template, send_from_directory
 from pathlib import Path
 import config
 import systemd_manager
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import logging
 import re
+import subprocess
+import threading
+import time
+import json as json_lib
+import urllib.request
+import urllib.error
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -84,6 +90,100 @@ def handle_generic_error(e):
     }), 500
 
 
+class GitUpdateChecker(threading.Thread):
+    """Background thread that polls GitHub for new commits and auto-updates services."""
+
+    INTERVAL = 300  # 5 minutes
+
+    def __init__(self):
+        super().__init__(daemon=True, name="GitUpdateChecker")
+
+    def run(self):
+        while True:
+            time.sleep(self.INTERVAL)
+            self._check_all()
+
+    def _check_all(self):
+        if not current_config:
+            return
+        for svc in list(current_config.services):
+            if svc.github_url and svc.auto_update:
+                try:
+                    self._check_and_update(svc)
+                except Exception as e:
+                    logger.error(f"Auto-update error for '{svc.name}': {e}")
+
+    def _remote_sha(self, github_url: str) -> Optional[str]:
+        match = re.search(r'github\.com[/:]([^/]+)/([^/\s]+)', github_url)
+        if not match:
+            return None
+        owner, repo = match.group(1), match.group(2).replace('.git', '')
+        api_url = f"https://api.github.com/repos/{owner}/{repo}/commits?per_page=1"
+        try:
+            req = urllib.request.Request(api_url, headers={'User-Agent': 'AutoRun/2.0'})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json_lib.loads(resp.read())
+                return data[0]['sha'] if data else None
+        except Exception:
+            return None
+
+    def _check_and_update(self, svc: config.ServiceConfig):
+        remote_sha = self._remote_sha(svc.github_url)
+        if not remote_sha or remote_sha == svc.last_commit_sha:
+            return
+
+        logger.info(f"New commit for '{svc.name}' ({remote_sha[:7]}), pulling...")
+        _git_pull_and_restart(svc, remote_sha)
+
+
+def _git_pull_and_restart(svc: config.ServiceConfig, new_sha: Optional[str] = None) -> dict:
+    """Stop service, git pull, restart. Returns dict with stdout/stderr."""
+    was_running = False
+    try:
+        was_running = systemd_manager.is_service_active(svc.name)
+    except Exception:
+        pass
+
+    if was_running:
+        try:
+            systemd_manager.stop_service(svc.name)
+        except Exception as e:
+            raise RuntimeError(f"Failed to stop service before pull: {e}")
+
+    result = subprocess.run(
+        ['git', '-C', svc.folder, 'pull'],
+        capture_output=True, text=True, timeout=120
+    )
+
+    if result.returncode != 0:
+        if was_running:
+            try:
+                systemd_manager.start_service(svc.name)
+            except Exception:
+                pass
+        raise RuntimeError(f"git pull failed: {result.stderr.strip()}")
+
+    # Update stored SHA
+    sha_to_store = new_sha
+    if not sha_to_store:
+        sha_result = subprocess.run(
+            ['git', '-C', svc.folder, 'rev-parse', 'HEAD'],
+            capture_output=True, text=True
+        )
+        if sha_result.returncode == 0:
+            sha_to_store = sha_result.stdout.strip()
+
+    if sha_to_store:
+        svc.last_commit_sha = sha_to_store
+    config.save_config(current_config, CONFIG_PATH)
+    logger.info(f"Pulled '{svc.name}' successfully")
+
+    if was_running:
+        systemd_manager.start_service(svc.name)
+
+    return {"stdout": result.stdout, "stderr": result.stderr}
+
+
 def init_app():
     """Initialize application and load configuration"""
     global current_config
@@ -105,6 +205,10 @@ def init_app():
                 logger.warning(f"  - {error}")
 
         logger.info(f"Loaded {len(current_config.services)} services")
+
+        # Start background git update checker
+        GitUpdateChecker().start()
+        logger.info("Git update checker started (5-minute interval)")
 
     except Exception as e:
         logger.error(f"Failed to initialize application: {e}")
@@ -502,6 +606,38 @@ def create_service():
             "error": {"message": f"Service '{service.name}' already exists"}
         }), 409
 
+    # Clone GitHub repo if requested and folder doesn't already exist
+    if service.github_url and not Path(service.folder).exists():
+        try:
+            clone = subprocess.run(
+                ['git', 'clone', service.github_url, service.folder],
+                capture_output=True, text=True, timeout=120
+            )
+            if clone.returncode != 0:
+                return jsonify({
+                    "status": "error",
+                    "error": {"message": f"git clone failed: {clone.stderr.strip()}"}
+                }), 500
+
+            sha = subprocess.run(
+                ['git', '-C', service.folder, 'rev-parse', 'HEAD'],
+                capture_output=True, text=True
+            )
+            if sha.returncode == 0:
+                service.last_commit_sha = sha.stdout.strip()
+
+            logger.info(f"Cloned {service.github_url} → {service.folder}")
+        except subprocess.TimeoutExpired:
+            return jsonify({
+                "status": "error",
+                "error": {"message": "git clone timed out"}
+            }), 500
+        except Exception as e:
+            return jsonify({
+                "status": "error",
+                "error": {"message": f"Clone error: {e}"}
+            }), 500
+
     # Add to configuration
     current_config.services.append(service)
 
@@ -710,6 +846,36 @@ def restart_service_endpoint(service_name: str):
         "message": f"Service '{service_name}' restarted",
         "data": status_info
     })
+
+
+@app.route('/api/services/<service_name>/pull', methods=['POST'])
+def pull_service_endpoint(service_name: str):
+    """Pull latest commits from GitHub, stop service, pull, restart."""
+    svc = find_service(service_name)
+
+    if not svc.github_url:
+        return jsonify({
+            "status": "error",
+            "error": {"message": f"Service '{service_name}' has no GitHub URL configured"}
+        }), 400
+
+    try:
+        output = _git_pull_and_restart(svc)
+        logger.info(f"Manually pulled service: {service_name}")
+        return jsonify({
+            "status": "success",
+            "message": f"Service '{service_name}' pulled and restarted",
+            "data": {
+                "commit": svc.last_commit_sha,
+                "stdout": output["stdout"],
+                "stderr": output["stderr"]
+            }
+        })
+    except RuntimeError as e:
+        return jsonify({
+            "status": "error",
+            "error": {"message": str(e)}
+        }), 500
 
 
 @app.route('/api/services/<service_name>/enable', methods=['POST'])

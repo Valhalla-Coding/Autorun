@@ -49,6 +49,9 @@ class ServiceConfig:
     description: str = ""
     environment: Dict[str, str] = field(default_factory=dict)
     depends_on: List[str] = field(default_factory=list)
+    github_url: Optional[str] = None
+    auto_update: bool = False
+    last_commit_sha: Optional[str] = None
 
     @property
     def service_filename(self) -> str:
