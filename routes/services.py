@@ -95,8 +95,13 @@ def create_service():
     # Clone GitHub repo if URL provided and folder doesn't exist yet
     if service.github_url and not Path(service.folder).exists():
         try:
+            clone_url = service.github_url
+            token = state.current_config.metadata.github_token
+            if token and 'github.com' in clone_url:
+                clone_url = clone_url.replace('https://', f'https://{token}@')
+
             clone = subprocess.run(
-                ['git', 'clone', service.github_url, service.folder],
+                ['git', 'clone', clone_url, service.folder],
                 capture_output=True, text=True, timeout=120
             )
             if clone.returncode != 0:

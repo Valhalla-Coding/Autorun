@@ -30,6 +30,7 @@ class AutoRunMetadata:
     dashboard_port: int = 80
     log_level: str = "INFO"
     default_user: str = "sodori"
+    github_token: Optional[str] = None
 
     def to_dict(self) -> dict:
         """Convert to dictionary"""

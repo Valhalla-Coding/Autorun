@@ -201,22 +201,21 @@ class ServiceManager {
     }
 
     async fetchGithubInfo(url) {
-        if (!url) return;
+        if (!url || !url.includes('github.com')) return;
 
-        const match = url.match(/github\.com\/([^/]+)\/([^/\s]+)/);
-        if (!match) return;
-
-        const [, owner, repo] = match;
-        const repoSlug = repo.replace(/\.git$/, '');
         const statusEl = $('#github-status');
-
         if (statusEl) statusEl.textContent = 'Fetching repo info...';
 
         try {
-            const res = await fetch(`https://api.github.com/repos/${owner}/${repoSlug}`);
-            if (!res.ok) throw new Error('Repo not found');
+            const res = await fetch(`/api/github/repo-info?url=${encodeURIComponent(url)}`);
+            const json = await res.json();
 
-            const data = await res.json();
+            if (json.status !== 'success') {
+                if (statusEl) statusEl.textContent = json.error?.message || 'Could not fetch repo info';
+                return;
+            }
+
+            const data = json.data;
 
             const nameInput = $('#service-name');
             if (nameInput && !nameInput.value) {
@@ -228,9 +227,10 @@ class ServiceManager {
                 descInput.value = data.description;
             }
 
-            if (statusEl) statusEl.textContent = `✓ Found: ${data.full_name}`;
+            const privateTag = data.private ? ' 🔒 private' : '';
+            if (statusEl) statusEl.textContent = `✓ Found: ${data.full_name}${privateTag}`;
         } catch {
-            if (statusEl) statusEl.textContent = 'Could not fetch repo info — check the URL';
+            if (statusEl) statusEl.textContent = 'Could not reach server';
         }
     }
 

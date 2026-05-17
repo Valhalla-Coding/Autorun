@@ -25,6 +25,34 @@
         </div>
     </section>
 
+    <section class="github-settings-section">
+        <div class="section-header collapsible" id="github-settings-toggle">
+            <h2>🐙 GitHub Settings</h2>
+            <span class="collapse-icon">▾</span>
+        </div>
+        <div id="github-settings-body">
+            <div class="github-token-card">
+                <div class="token-instructions">
+                    <p>A <strong>Personal Access Token (PAT)</strong> is required to clone and poll private repositories. Public repos work without one.</p>
+                    <ol>
+                        <li>Go to <strong>github.com → Settings → Developer settings → Personal access tokens → Fine-grained tokens</strong></li>
+                        <li>Click <strong>Generate new token</strong>, give it a name like "AutoRun"</li>
+                        <li>Under <em>Repository access</em>, select the repos AutoRun should access</li>
+                        <li>Under <em>Permissions → Repository → Contents</em>, set to <strong>Read-only</strong></li>
+                        <li>Generate and paste the token below</li>
+                    </ol>
+                    <p class="token-note">The token is stored in <code>autorun.yaml</code> and is never sent to the browser after saving.</p>
+                </div>
+                <div class="token-input-row">
+                    <input type="password" id="github-token-input" placeholder="github_pat_..." autocomplete="off">
+                    <button id="github-token-save" class="btn-primary">Save Token</button>
+                    <button id="github-token-clear" class="btn-secondary">Clear</button>
+                </div>
+                <small id="github-token-status"></small>
+            </div>
+        </div>
+    </section>
+
     <section class="services-section">
         <div class="section-header">
             <h2>Services</h2>

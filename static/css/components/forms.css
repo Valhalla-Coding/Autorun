@@ -148,6 +148,96 @@
     word-break: break-all;
 }
 
+/* GitHub Settings Section */
+.github-settings-section {
+    margin-bottom: 2rem;
+}
+
+.collapsible {
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.collapsible:hover h2 {
+    color: var(--accent-primary);
+}
+
+.collapse-icon {
+    font-size: 1.1rem;
+    color: var(--text-muted);
+}
+
+.github-token-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 1.25rem 1.5rem;
+    margin-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.token-instructions {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.token-instructions ol {
+    margin: 0.5rem 0 0.5rem 1.25rem;
+    padding: 0;
+}
+
+.token-instructions li {
+    margin-bottom: 0.25rem;
+}
+
+.token-instructions code {
+    background: var(--bg-tertiary);
+    padding: 0.1rem 0.35rem;
+    border-radius: 3px;
+    font-size: 0.8rem;
+}
+
+.token-note {
+    margin-top: 0.5rem;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+.token-input-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.token-input-row input {
+    flex: 1;
+    padding: 0.55rem 0.75rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-family: monospace;
+}
+
+.token-input-row input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+#github-token-status {
+    font-size: 0.8rem;
+}
+
+#github-token-status.token-ok      { color: var(--status-running); }
+#github-token-status.token-missing { color: var(--text-muted); }
+
 .warning-text {
     color: var(--status-failed);
     font-size: 0.9rem;

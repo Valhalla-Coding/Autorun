@@ -94,8 +94,12 @@ class GitUpdateChecker(threading.Thread):
             return None
         owner, repo = match.group(1), match.group(2).replace('.git', '')
         api_url = f"https://api.github.com/repos/{owner}/{repo}/commits?per_page=1"
+        headers = {'User-Agent': 'AutoRun/2.0'}
+        token = state.current_config.metadata.github_token if state.current_config else None
+        if token:
+            headers['Authorization'] = f'token {token}'
         try:
-            req = urllib.request.Request(api_url, headers={'User-Agent': 'AutoRun/2.0'})
+            req = urllib.request.Request(api_url, headers=headers)
             with urllib.request.urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read())
                 return data[0]['sha'] if data else None
