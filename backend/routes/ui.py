@@ -6,7 +6,7 @@ from pathlib import Path
 from flask import Blueprint, send_from_directory
 
 ui_bp = Blueprint("ui", __name__)
-DIST_DIR = Path(__file__).parent.parent / "frontend" / "dist"
+DIST_DIR = Path(__file__).parent.parent.parent / "frontend" / "dist"
 
 
 @ui_bp.route("/", defaults={"path": ""})
