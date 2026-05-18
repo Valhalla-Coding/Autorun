@@ -2,6 +2,17 @@ import { useState, useEffect, useRef } from 'react'
 import FolderBrowser from './FolderBrowser'
 import { github, system } from '../api'
 
+// Fetch system username once and cache it
+let _systemUser = null
+async function getSystemUser() {
+  if (_systemUser) return _systemUser
+  try {
+    const d = await system.health()
+    _systemUser = d.data?.system_user || 'user'
+  } catch { _systemUser = 'user' }
+  return _systemUser
+}
+
 const RESTART_OPTIONS = ['always', 'on-failure', 'no']
 
 const LOCAL_DEFAULT  = { name: '', description: '', folder: '', entrypoint: '', web_interface: false, port: '', url: '', auto_restart: 'always', enabled: true, github_url: null, auto_update: false }
@@ -14,20 +25,30 @@ const Toggle = ({ value, onChange }) => (
   </button>
 )
 
-function EntrypointPicker({ folder, value, onChange, inp }) {
+function EntrypointPicker({ folder, githubUrl, branch, value, onChange, inp }) {
   const [files, setFiles] = useState([])
   const [loading, setLoading] = useState(false)
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
   useEffect(() => {
-    if (!folder) { setFiles([]); return }
-    setLoading(true)
-    system.browseFiles(folder)
-      .then(d => setFiles(d.data?.files ?? []))
-      .catch(() => setFiles([]))
-      .finally(() => setLoading(false))
-  }, [folder])
+    setFiles([])
+    if (githubUrl && githubUrl.includes('github.com')) {
+      // GitHub mode — fetch file tree from API
+      setLoading(true)
+      github.repoFiles(githubUrl, branch || 'main')
+        .then(d => setFiles((d.data?.files ?? []).map(f => ({ name: f, path: f }))))
+        .catch(() => setFiles([]))
+        .finally(() => setLoading(false))
+    } else if (folder) {
+      // Local mode — browse filesystem
+      setLoading(true)
+      system.browseFiles(folder)
+        .then(d => setFiles(d.data?.files ?? []))
+        .catch(() => setFiles([]))
+        .finally(() => setLoading(false))
+    }
+  }, [folder, githubUrl, branch])
 
   useEffect(() => {
     function handleClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
@@ -35,12 +56,13 @@ function EntrypointPicker({ folder, value, onChange, inp }) {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  if (!folder || files.length === 0) {
-    return (
-      <input value={value} onChange={e => onChange(e.target.value)}
-        placeholder={folder ? (loading ? 'Loading files…' : 'No .py files found — type manually') : 'Set folder first'}
-        className={inp} />
-    )
+  const ready = !loading && files.length > 0
+  const placeholder = loading ? 'Loading files…'
+    : (githubUrl || folder) ? 'No .py files found — type manually'
+    : githubUrl ? 'Enter GitHub URL first' : 'Set folder first'
+
+  if (!ready) {
+    return <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className={inp} />
   }
 
   return (
@@ -53,7 +75,7 @@ function EntrypointPicker({ folder, value, onChange, inp }) {
         </svg>
       </button>
       {open && (
-        <div className="absolute z-50 top-full mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-xl overflow-hidden">
+        <div className="absolute z-50 top-full mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-xl overflow-y-auto max-h-48">
           {files.map(f => (
             <button key={f.path} type="button"
               onClick={() => { onChange(f.name); setOpen(false) }}
@@ -77,6 +99,7 @@ export default function ServiceModal({ mode = 'add', service = null, onSave, onC
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [githubLookup, setGithubLookup] = useState(null) // 'loading' | 'ok' | 'error'
+  const [repoBranch, setRepoBranch] = useState('main')
   const githubDebounce = useRef(null)
 
   const [form, setForm] = useState(() => {
@@ -110,14 +133,15 @@ export default function ServiceModal({ mode = 'add', service = null, onSave, onC
     setGithubLookup('loading')
     githubDebounce.current = setTimeout(async () => {
       try {
-        const d = await github.repoInfo(url)
-        const repo = d.data
+        const [repoData, sysUser] = await Promise.all([github.repoInfo(url), getSystemUser()])
+        const repo = repoData.data
+        setRepoBranch(repo.default_branch || 'main')
         setForm(f => ({
           ...f,
           github_url: url,
           name: f.name || repo.name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
           description: f.description || repo.description || '',
-          folder: f.folder || `/home/${window.__autorunUser ?? 'user'}/${repo.name}`,
+          folder: f.folder || `/home/${sysUser}/git/${repo.name}`,
         }))
         setGithubLookup('ok')
       } catch {
@@ -278,7 +302,7 @@ export default function ServiceModal({ mode = 'add', service = null, onSave, onC
 
                 <div>
                   <label className="block text-xs font-medium text-gray-400 mb-1.5">Entrypoint</label>
-                  <EntrypointPicker folder={form.folder} value={form.entrypoint} onChange={v => set('entrypoint', v)} inp={inp} />
+                  <EntrypointPicker folder={form.folder} githubUrl={form.github_url} branch={repoBranch} value={form.entrypoint} onChange={v => set('entrypoint', v)} inp={inp} />
                 </div>
 
                 <div className="flex items-center justify-between py-1">
@@ -331,6 +355,7 @@ export default function ServiceModal({ mode = 'add', service = null, onSave, onC
                 <EnabledSection />
               </>
             )}
+
           </form>
 
           {/* Footer */}

@@ -39,6 +39,13 @@ def fetch_repo_info(github_url: str, token: str = None) -> dict:
         return json.loads(resp.read())
 
 
+def _parse_owner_repo(github_url: str):
+    match = re.search(r"github\.com[/:]([^/]+)/([^/\s]+)", github_url)
+    if not match:
+        raise ValueError("Not a valid GitHub URL")
+    return match.group(1), match.group(2).replace(".git", "")
+
+
 @github_bp.route("/api/github/repo-info", methods=["GET"])
 @require_auth
 def repo_info():
@@ -53,12 +60,46 @@ def repo_info():
             "full_name": data["full_name"],
             "description": data.get("description") or "",
             "private": data.get("private", False),
+            "default_branch": data.get("default_branch", "main"),
         }})
     except ValueError as e:
         return jsonify({"status": "error", "error": {"message": str(e)}}), 400
     except urllib.error.HTTPError as e:
-        msgs = {401: "Auth failed — token invalid or expired", 404: "Repo not found — private? Add GITHUB_TOKEN env var"}
+        msgs = {401: "Auth failed — token invalid or expired", 404: "Repo not found — private? Add a GitHub token in Settings"}
         return jsonify({"status": "error", "error": {"message": msgs.get(e.code, f"GitHub API {e.code}")}}), e.code
     except Exception as e:
         logger.error(f"GitHub repo-info error: {e}")
         return jsonify({"status": "error", "error": {"message": "Could not reach GitHub API"}}), 502
+
+
+@github_bp.route("/api/github/repo-files", methods=["GET"])
+@require_auth
+def repo_files():
+    """Return all .py files in the repo root (via git trees API)."""
+    url = request.args.get("url", "").strip()
+    branch = request.args.get("branch", "main").strip()
+    if not url:
+        return jsonify({"status": "error", "error": {"message": "url parameter required"}}), 400
+    token = _get_token(g.db)
+    try:
+        owner, repo = _parse_owner_repo(url)
+        api_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
+        headers = {"User-Agent": "AutoRun/3.0"}
+        if token:
+            headers["Authorization"] = f"token {token}"
+        req = urllib.request.Request(api_url, headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())
+        py_files = [
+            item["path"] for item in data.get("tree", [])
+            if item["type"] == "blob" and item["path"].endswith(".py")
+               and "/" not in item["path"]  # root-level only
+        ]
+        return jsonify({"status": "success", "data": {"files": py_files}})
+    except ValueError as e:
+        return jsonify({"status": "error", "error": {"message": str(e)}}), 400
+    except urllib.error.HTTPError as e:
+        return jsonify({"status": "error", "error": {"message": f"GitHub API {e.code}"}}), e.code
+    except Exception as e:
+        logger.error(f"GitHub repo-files error: {e}")
+        return jsonify({"status": "error", "error": {"message": "Could not fetch repo files"}}), 502

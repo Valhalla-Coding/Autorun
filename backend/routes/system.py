@@ -53,7 +53,12 @@ def system_status():
 
 @system_bp.route("/api/health", methods=["GET"])
 def health_check():
-    return jsonify({"status": "success", "message": "AutoRun v3 is running"})
+    import os, pwd
+    try:
+        system_user = os.environ.get("AUTORUN_USER") or pwd.getpwuid(os.getuid()).pw_name
+    except Exception:
+        system_user = "user"
+    return jsonify({"status": "success", "message": "AutoRun v3 is running", "data": {"system_user": system_user}})
 
 
 @system_bp.route("/api/browse/folders", methods=["GET"])

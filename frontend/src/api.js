@@ -50,7 +50,8 @@ export const system = {
 }
 
 export const github = {
-  repoInfo: (url) => request('GET', `/api/github/repo-info?url=${encodeURIComponent(url)}`),
+  repoInfo:  (url)            => request('GET', `/api/github/repo-info?url=${encodeURIComponent(url)}`),
+  repoFiles: (url, branch)    => request('GET', `/api/github/repo-files?url=${encodeURIComponent(url)}&branch=${encodeURIComponent(branch || 'main')}`),
 }
 
 export const settings = {
