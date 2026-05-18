@@ -5,6 +5,7 @@ import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import ConsolePage from './pages/ConsolePage'
+import SettingsPage from './pages/SettingsPage'
 
 const AuthContext = createContext(null)
 export function useAuth() { return useContext(AuthContext) }
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
             <Route index element={<DashboardPage />} />
             <Route path="console" element={<ConsolePage />} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

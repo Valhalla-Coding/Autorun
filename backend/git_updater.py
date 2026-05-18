@@ -21,7 +21,17 @@ from database import SessionLocal, Service
 
 logger = logging.getLogger("autorun.git_updater")
 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+def _get_github_token() -> str:
+    try:
+        from database import SessionLocal, Setting
+        db = SessionLocal()
+        row = db.query(Setting).filter_by(key="github_token").first()
+        db.close()
+        if row and row.value:
+            return row.value
+    except Exception:
+        pass
+    return os.environ.get("GITHUB_TOKEN", "")
 
 
 def git_pull_and_restart(service_name: str, new_sha: Optional[str] = None) -> dict:
@@ -103,8 +113,9 @@ def _remote_sha(github_url: str) -> Optional[str]:
     owner, repo = match.group(1), match.group(2).replace('.git', '')
     api_url = f"https://api.github.com/repos/{owner}/{repo}/commits?per_page=1"
     headers = {'User-Agent': 'AutoRun/3.0'}
-    if GITHUB_TOKEN:
-        headers['Authorization'] = f'token {GITHUB_TOKEN}'
+    token = _get_github_token()
+    if token:
+        headers['Authorization'] = f'token {token}'
     try:
         req = urllib.request.Request(api_url, headers=headers)
         with urllib.request.urlopen(req, timeout=10) as resp:

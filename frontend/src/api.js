@@ -49,4 +49,13 @@ export const system = {
   browseFiles:   (path) => request('GET',  `/api/browse/files?path=${encodeURIComponent(path)}`),
 }
 
+export const github = {
+  repoInfo: (url) => request('GET', `/api/github/repo-info?url=${encodeURIComponent(url)}`),
+}
+
+export const settings = {
+  get:    ()     => request('GET', '/api/settings'),
+  update: (body) => request('PUT', '/api/settings', body),
+}
+
 export { getToken, setToken }

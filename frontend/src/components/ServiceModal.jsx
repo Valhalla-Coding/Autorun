@@ -1,31 +1,90 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import FolderBrowser from './FolderBrowser'
+import { github, system } from '../api'
 
 const RESTART_OPTIONS = ['always', 'on-failure', 'no']
 
-const LOCAL_DEFAULT  = { name: '', description: '', folder: '', entrypoint: 'run.py', web_interface: false, port: '', url: '', auto_restart: 'always', enabled: true, github_url: null, auto_update: false }
-const GITHUB_DEFAULT = { name: '', description: '', github_url: '', folder: '', entrypoint: 'run.py', web_interface: false, port: '', url: '', auto_restart: 'always', enabled: true, auto_update: true }
+const LOCAL_DEFAULT  = { name: '', description: '', folder: '', entrypoint: '', web_interface: false, port: '', url: '', auto_restart: 'always', enabled: true, github_url: null, auto_update: false }
+const GITHUB_DEFAULT = { name: '', description: '', github_url: '', folder: '', entrypoint: '', web_interface: false, port: '', url: '', auto_restart: 'always', enabled: true, auto_update: true }
 
 const Toggle = ({ value, onChange }) => (
   <button type="button" onClick={() => onChange(!value)}
-    className={`relative w-10 h-6 rounded-full transition-colors ${value ? 'bg-brand-600' : 'bg-gray-700'}`}>
+    className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${value ? 'bg-brand-600' : 'bg-gray-700'}`}>
     <span className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${value ? 'translate-x-4' : ''}`} />
   </button>
 )
 
+function EntrypointPicker({ folder, value, onChange, inp }) {
+  const [files, setFiles] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!folder) { setFiles([]); return }
+    setLoading(true)
+    system.browseFiles(folder)
+      .then(d => setFiles(d.data?.files ?? []))
+      .catch(() => setFiles([]))
+      .finally(() => setLoading(false))
+  }, [folder])
+
+  useEffect(() => {
+    function handleClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  if (!folder || files.length === 0) {
+    return (
+      <input value={value} onChange={e => onChange(e.target.value)}
+        placeholder={folder ? (loading ? 'Loading files…' : 'No .py files found — type manually') : 'Set folder first'}
+        className={inp} />
+    )
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className={`${inp} flex items-center justify-between text-left`}>
+        <span className={value ? 'text-white' : 'text-gray-600'}>{value || 'Select entrypoint…'}</span>
+        <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-50 top-full mt-1 w-full bg-gray-800 border border-gray-700 rounded-lg shadow-xl overflow-hidden">
+          {files.map(f => (
+            <button key={f.path} type="button"
+              onClick={() => { onChange(f.name); setOpen(false) }}
+              className={`flex items-center gap-2 w-full px-3 py-2 text-sm text-left hover:bg-gray-700 transition ${value === f.name ? 'text-brand-300 bg-brand-600/10' : 'text-gray-200'}`}>
+              <svg className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
+              </svg>
+              {f.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ServiceModal({ mode = 'add', service = null, onSave, onClose }) {
-  const existingTab = mode === 'edit' && service?.config?.github_url ? 'github' : 'local'
+  const existingTab = mode === 'edit' && (service?.config?.github_url || service?.github_url) ? 'github' : 'local'
   const [tab, setTab] = useState(existingTab)
   const [showBrowser, setShowBrowser] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [githubLookup, setGithubLookup] = useState(null) // 'loading' | 'ok' | 'error'
+  const githubDebounce = useRef(null)
 
   const [form, setForm] = useState(() => {
     if (mode === 'edit' && service) {
       const c = service.config ?? service
       return {
         name: c.name ?? '', description: c.description ?? '', folder: c.folder ?? '',
-        entrypoint: c.entrypoint ?? 'run.py', web_interface: c.web_interface ?? false,
+        entrypoint: c.entrypoint ?? '', web_interface: c.web_interface ?? false,
         port: c.port ?? '', url: c.url ?? '', auto_restart: c.auto_restart ?? 'always',
         enabled: c.enabled ?? true, github_url: c.github_url ?? '', auto_update: c.auto_update ?? false
       }
@@ -38,9 +97,33 @@ export default function ServiceModal({ mode = 'add', service = null, onSave, onC
   function switchTab(t) {
     setTab(t)
     setError('')
-    if (mode === 'add') {
-      setForm(t === 'local' ? { ...LOCAL_DEFAULT } : { ...GITHUB_DEFAULT })
-    }
+    setGithubLookup(null)
+    if (mode === 'add') setForm(t === 'local' ? { ...LOCAL_DEFAULT } : { ...GITHUB_DEFAULT })
+  }
+
+  // Auto-populate name + description from GitHub URL
+  function onGithubUrlChange(url) {
+    set('github_url', url)
+    setGithubLookup(null)
+    clearTimeout(githubDebounce.current)
+    if (!url || !url.includes('github.com')) return
+    setGithubLookup('loading')
+    githubDebounce.current = setTimeout(async () => {
+      try {
+        const d = await github.repoInfo(url)
+        const repo = d.data
+        setForm(f => ({
+          ...f,
+          github_url: url,
+          name: f.name || repo.name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+          description: f.description || repo.description || '',
+          folder: f.folder || `/home/${window.__autorunUser ?? 'user'}/${repo.name}`,
+        }))
+        setGithubLookup('ok')
+      } catch {
+        setGithubLookup('error')
+      }
+    }, 600)
   }
 
   async function handleSubmit(e) {
@@ -124,14 +207,14 @@ export default function ServiceModal({ mode = 'add', service = null, onSave, onC
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
             <h2 className="text-base font-semibold text-white">
-              {mode === 'add' ? 'Add Service' : `Edit — ${service?.name ?? service?.config?.name}`}
+              {mode === 'add' ? 'Add Service' : `Edit — ${service?.config?.name ?? service?.name}`}
             </h2>
             <button onClick={onClose} className="text-gray-500 hover:text-gray-200 transition">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
 
-          {/* Tabs — only shown when adding */}
+          {/* Tabs */}
           {mode === 'add' && (
             <div className="flex px-6 pt-4 gap-2">
               <button type="button" onClick={() => switchTab('local')}
@@ -151,51 +234,35 @@ export default function ServiceModal({ mode = 'add', service = null, onSave, onC
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto scrollbar-thin px-6 py-4 space-y-4">
             {error && <div className="bg-red-950 border border-red-800 text-red-300 text-sm px-4 py-3 rounded-lg">{error}</div>}
 
-            {/* Name + description — shared */}
-            <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1.5">Service name <span className="text-red-400">*</span></label>
-              <input value={form.name} onChange={e => set('name', e.target.value)} disabled={mode === 'edit'} required pattern="^[a-z0-9-]+$" placeholder="my-flask-app"
-                className={inp + (mode === 'edit' ? ' opacity-50 cursor-not-allowed' : '')} />
-              <p className="text-xs text-gray-600 mt-1">Lowercase letters, numbers, hyphens</p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-400 mb-1.5">Description</label>
-              <input value={form.description} onChange={e => set('description', e.target.value)} placeholder="What does this service do?" className={inp} />
-            </div>
-
-            {/* ── LOCAL TAB ── */}
-            {tab === 'local' && (
-              <>
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Folder <span className="text-red-400">*</span></label>
-                  <div className="flex gap-2">
-                    <input value={form.folder} onChange={e => set('folder', e.target.value)} required placeholder="/home/user/my-app" className={inp + ' flex-1'} />
-                    <button type="button" onClick={() => setShowBrowser(true)}
-                      className="px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-gray-400 hover:text-white transition" title="Browse">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776" /></svg>
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Entrypoint</label>
-                  <input value={form.entrypoint} onChange={e => set('entrypoint', e.target.value)} placeholder="run.py" className={inp} />
-                </div>
-
-                <WebInterfaceSection />
-                <RestartSection />
-                <EnabledSection />
-              </>
-            )}
-
             {/* ── GITHUB TAB ── */}
             {tab === 'github' && (
               <>
+                {/* GitHub URL — first, with live lookup indicator */}
                 <div>
                   <label className="block text-xs font-medium text-gray-400 mb-1.5">GitHub URL <span className="text-red-400">*</span></label>
-                  <input value={form.github_url} onChange={e => set('github_url', e.target.value)} required placeholder="https://github.com/user/repo" className={inp} />
+                  <div className="relative">
+                    <input value={form.github_url} onChange={e => onGithubUrlChange(e.target.value)}
+                      required placeholder="https://github.com/user/repo" className={inp + ' pr-8'} />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                      {githubLookup === 'loading' && <span className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin block" />}
+                      {githubLookup === 'ok'      && <svg className="w-4 h-4 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg>}
+                      {githubLookup === 'error'   && <svg className="w-4 h-4 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" /></svg>}
+                    </span>
+                  </div>
+                  {githubLookup === 'error' && <p className="text-xs text-yellow-500 mt-1">Couldn't fetch repo info — check the URL or add a GitHub token in Settings</p>}
                   <p className="text-xs text-gray-600 mt-1">Repo will be cloned automatically if the folder doesn't exist</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Service name <span className="text-red-400">*</span></label>
+                  <input value={form.name} onChange={e => set('name', e.target.value)} disabled={mode === 'edit'} required pattern="^[a-z0-9-]+$" placeholder="my-flask-app"
+                    className={inp + (mode === 'edit' ? ' opacity-50 cursor-not-allowed' : '')} />
+                  <p className="text-xs text-gray-600 mt-1">Lowercase letters, numbers, hyphens</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Description</label>
+                  <input value={form.description} onChange={e => set('description', e.target.value)} placeholder="What does this service do?" className={inp} />
                 </div>
 
                 <div>
@@ -211,7 +278,7 @@ export default function ServiceModal({ mode = 'add', service = null, onSave, onC
 
                 <div>
                   <label className="block text-xs font-medium text-gray-400 mb-1.5">Entrypoint</label>
-                  <input value={form.entrypoint} onChange={e => set('entrypoint', e.target.value)} placeholder="run.py" className={inp} />
+                  <EntrypointPicker folder={form.folder} value={form.entrypoint} onChange={v => set('entrypoint', v)} inp={inp} />
                 </div>
 
                 <div className="flex items-center justify-between py-1">
@@ -220,6 +287,43 @@ export default function ServiceModal({ mode = 'add', service = null, onSave, onC
                     <p className="text-xs text-gray-500">Pull and restart when new commits are pushed</p>
                   </div>
                   <Toggle value={form.auto_update} onChange={v => set('auto_update', v)} />
+                </div>
+
+                <WebInterfaceSection />
+                <RestartSection />
+                <EnabledSection />
+              </>
+            )}
+
+            {/* ── LOCAL TAB ── */}
+            {tab === 'local' && (
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Service name <span className="text-red-400">*</span></label>
+                  <input value={form.name} onChange={e => set('name', e.target.value)} disabled={mode === 'edit'} required pattern="^[a-z0-9-]+$" placeholder="my-flask-app"
+                    className={inp + (mode === 'edit' ? ' opacity-50 cursor-not-allowed' : '')} />
+                  <p className="text-xs text-gray-600 mt-1">Lowercase letters, numbers, hyphens</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Description</label>
+                  <input value={form.description} onChange={e => set('description', e.target.value)} placeholder="What does this service do?" className={inp} />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Folder <span className="text-red-400">*</span></label>
+                  <div className="flex gap-2">
+                    <input value={form.folder} onChange={e => set('folder', e.target.value)} required placeholder="/home/user/my-app" className={inp + ' flex-1'} />
+                    <button type="button" onClick={() => setShowBrowser(true)}
+                      className="px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-gray-400 hover:text-white transition" title="Browse">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776" /></svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Entrypoint</label>
+                  <EntrypointPicker folder={form.folder} value={form.entrypoint} onChange={v => set('entrypoint', v)} inp={inp} />
                 </div>
 
                 <WebInterfaceSection />

@@ -11,13 +11,18 @@ import re
 import urllib.error
 import urllib.request
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 from routes.auth import require_auth
 
 import logging
 logger = logging.getLogger("autorun")
 
 github_bp = Blueprint("github", __name__)
+
+
+def _get_token(db) -> str:
+    from routes.settings import get_setting
+    return get_setting(db, "github_token") or os.environ.get("GITHUB_TOKEN", "")
 
 
 def fetch_repo_info(github_url: str, token: str = None) -> dict:
@@ -40,7 +45,7 @@ def repo_info():
     url = request.args.get("url", "").strip()
     if not url:
         return jsonify({"status": "error", "error": {"message": "url parameter required"}}), 400
-    token = os.environ.get("GITHUB_TOKEN")
+    token = _get_token(g.db)
     try:
         data = fetch_repo_info(url, token)
         return jsonify({"status": "success", "data": {
