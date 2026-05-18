@@ -127,8 +127,15 @@ def create_service():
 
     if svc.github_url and not Path(svc.folder).exists():
         try:
-            clone = subprocess.run(["git", "clone", svc.github_url, svc.folder],
-                                   capture_output=True, text=True, timeout=120)
+            # Embed token in URL for non-interactive auth (systemd has no terminal)
+            from routes.settings import get_setting
+            token = get_setting(g.db, "github_token") or os.environ.get("GITHUB_TOKEN", "")
+            clone_url = svc.github_url
+            if token and clone_url.startswith("https://github.com/"):
+                clone_url = clone_url.replace("https://", f"https://{token}@")
+            env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+            clone = subprocess.run(["git", "clone", clone_url, svc.folder],
+                                   capture_output=True, text=True, timeout=120, env=env)
             if clone.returncode != 0:
                 return jsonify({"status": "error", "error": {"message": f"git clone failed: {clone.stderr.strip()}"}}), 500
             sha = subprocess.run(["git", "-C", svc.folder, "rev-parse", "HEAD"],

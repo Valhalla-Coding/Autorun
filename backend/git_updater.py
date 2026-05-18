@@ -68,9 +68,17 @@ def git_pull_and_restart(service_name: str, new_sha: Optional[str] = None) -> di
             except Exception as e:
                 raise RuntimeError(f"Failed to stop service before pull: {e}")
 
+        token = _get_github_token()
+        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+        # Set token via credential helper env so pull works without a terminal
+        if token:
+            env["GIT_ASKPASS"] = "echo"
+            env["GIT_USERNAME"] = token
+            env["GIT_PASSWORD"] = token
+
         result = subprocess.run(
             ['git', '-C', folder, 'pull'],
-            capture_output=True, text=True, timeout=120
+            capture_output=True, text=True, timeout=120, env=env
         )
 
         if result.returncode != 0:
