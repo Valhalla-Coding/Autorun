@@ -257,8 +257,8 @@ def pull_service(name):
     if not svc.github_url:
         return jsonify({"status": "error", "error": {"message": "No GitHub URL configured"}}), 400
     try:
-        output = git_pull_and_restart(svc)
-        g.db.commit()
+        output = git_pull_and_restart(name)
+        g.db.refresh(svc)
         return jsonify({"status": "success", "message": f"'{name}' pulled and restarted", "data": {"commit": svc.last_commit_sha, **output}})
     except RuntimeError as e:
         return jsonify({"status": "error", "error": {"message": str(e)}}), 500

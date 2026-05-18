@@ -23,6 +23,20 @@ def get_token_from_request():
     return request.cookies.get("autorun_token")
 
 
+def get_user_from_token(token: str):
+    """Validate a raw token string. Returns User or None. Caller must close db."""
+    if not token:
+        return None
+    db = SessionLocal()
+    session = db.query(UserSession).filter_by(token=token).first()
+    if not session or session.is_expired:
+        db.close()
+        return None
+    user = session.user
+    db.close()
+    return user
+
+
 def require_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):

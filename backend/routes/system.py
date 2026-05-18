@@ -2,13 +2,15 @@
 AutoRun v3 - System API Routes
 """
 
+import subprocess
+import time
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request, g
+from flask import Blueprint, jsonify, request, g, Response, stream_with_context
 
 import systemd_manager
-from database import Service
-from routes.auth import require_auth
+from database import Service, SessionLocal
+from routes.auth import require_auth, get_user_from_token
 
 import logging
 logger = logging.getLogger("autorun")
@@ -80,6 +82,73 @@ def browse_folders():
         return jsonify({"status": "success", "data": {"current_path": path_str, "parent": parent, "folders": folders}})
     except Exception as e:
         return jsonify({"status": "error", "error": {"message": str(e)}}), 500
+
+
+@system_bp.route("/api/logs/stream", methods=["GET"])
+def stream_logs():
+    """
+    SSE endpoint streaming journalctl output.
+    Auth via ?token=<token> query param (EventSource can't set headers).
+    Optional ?service=<name> to filter to a single service.
+    """
+    import json as _json
+
+    token = request.args.get("token", "")
+    user = get_user_from_token(token)
+    if not user:
+        return Response("Unauthorized", status=401)
+
+    service_name = request.args.get("service", "").strip()
+
+    def generate():
+        cmd = ["/usr/bin/journalctl", "-f", "-n", "100", "--no-pager",
+               "-o", "json", "--output-fields=MESSAGE,PRIORITY,_SYSTEMD_UNIT"]
+        if service_name:
+            cmd += ["-u", f"autorun-{service_name}.service"]
+        else:
+            cmd += ["-u", "autorun-*.service"]
+
+        try:
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                    stderr=subprocess.DEVNULL, text=True)
+            for raw_line in proc.stdout:
+                raw_line = raw_line.strip()
+                if not raw_line:
+                    continue
+                try:
+                    entry = _json.loads(raw_line)
+                    text = entry.get("MESSAGE", "")
+                    priority = int(entry.get("PRIORITY", 6))
+                    unit = entry.get("_SYSTEMD_UNIT", "")
+                    svc = unit.replace("autorun-", "").replace(".service", "") if unit else ""
+                    if priority <= 3:
+                        level = "ERROR"
+                    elif priority == 4:
+                        level = "WARNING"
+                    elif priority == 7:
+                        level = "DEBUG"
+                    else:
+                        level = "INFO"
+                    out = _json.dumps({
+                        "text": text,
+                        "level": level,
+                        "service": svc,
+                        "ts": entry.get("__REALTIME_TIMESTAMP", ""),
+                    })
+                except Exception:
+                    out = _json.dumps({"text": raw_line, "level": "INFO", "ts": ""})
+                yield f"data: {out}\n\n"
+        except GeneratorExit:
+            proc.terminate()
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        }
+    )
 
 
 @system_bp.route("/api/browse/files", methods=["GET"])

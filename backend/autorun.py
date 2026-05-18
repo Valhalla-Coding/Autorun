@@ -29,13 +29,6 @@ def handle_systemd_error(e):
     return jsonify({"status": "error", "error": {"type": "SystemdOperationError", "message": str(e)}}), 500
 
 
-@app.errorhandler(systemd_manager.PermissionError)
-def handle_permission_error(e):
-    return jsonify({"status": "error", "error": {
-        "type": "PermissionError", "message": str(e),
-        "hint": "Check sudoers configuration."
-    }}), 403
-
 
 @app.errorhandler(404)
 def not_found(e):
