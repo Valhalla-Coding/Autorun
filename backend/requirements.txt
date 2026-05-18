@@ -1,0 +1,16 @@
+# AutoRun v3 Dependencies
+
+# Web framework
+flask>=3.0.0
+
+# Database ORM
+sqlalchemy>=2.0.0
+
+# Password hashing
+bcrypt>=4.1.0
+
+# HTTP requests (git operations / future proxy)
+requests>=2.31.0
+
+# Better date/time handling
+python-dateutil>=2.8.0
