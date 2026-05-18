@@ -134,7 +134,8 @@ WorkingDirectory=$SCRIPT_DIR/backend
 ExecStart=$VENV/bin/python3 $SCRIPT_DIR/backend/autorun.py
 Environment="AUTORUN_DB_DIR=$DB_DIR"
 Environment="AUTORUN_USER=$AUTORUN_USER"
-Environment="AUTORUN_PORT=80"
+Environment="AUTORUN_PORT=8080"
+Environment="PYTHONPATH=$SCRIPT_DIR/backend"
 Restart=always
 RestartSec=5
 
@@ -150,7 +151,7 @@ success "autorun service installed and started"
 echo ""
 echo -e "  ${GREEN}Installation complete!${NC}"
 echo ""
-echo "  Dashboard → http://localhost"
+echo "  Dashboard → http://localhost:8080"
 echo "  Logs      → journalctl -u autorun -f"
 echo "  Stop      → sudo systemctl stop autorun"
 echo ""
