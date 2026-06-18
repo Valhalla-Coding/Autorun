@@ -62,6 +62,8 @@ def generate_service_file(service, user: str) -> str:
 Description={description}
 {after_line}
 {requires_line if requires_line else ''}
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Service]
 Type=simple
@@ -71,8 +73,6 @@ ExecStart=/usr/bin/python3 {entrypoint}
 {env_section}
 Restart={auto_restart}
 RestartSec=3
-StartLimitBurst=5
-StartLimitIntervalSec=60
 StandardOutput=journal
 StandardError=journal
 
