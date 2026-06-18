@@ -36,7 +36,7 @@ info "Running as user: $AUTORUN_USER"
 info "Checking system dependencies..."
 apt-get update -q
 
-for pkg in python3 python3-pip python3-venv git curl; do
+for pkg in python3 python3-pip python3-venv git curl npm; do
   if ! dpkg -l "$pkg" &>/dev/null; then
     info "Installing $pkg..."
     apt-get install -y -q "$pkg"
@@ -49,9 +49,18 @@ if command -v node &>/dev/null; then
 fi
 if [ "$NODE_MAJOR" -lt 18 ]; then
   info "Installing Node.js LTS..."
-  curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - > /dev/null
-  apt-get install -y -q nodejs
+  if command -v curl &>/dev/null; then
+    curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - > /dev/null
+  fi
+  apt-get install -y -q nodejs npm
 fi
+
+# Ensure npm is installed
+if ! command -v npm &>/dev/null; then
+  info "Installing npm..."
+  apt-get install -y -q npm
+fi
+
 success "Node $(node --version) / npm $(npm --version)"
 
 # ── Python virtualenv ─────────────────────────────────────────────────────────
