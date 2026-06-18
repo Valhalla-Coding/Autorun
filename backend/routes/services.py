@@ -240,10 +240,18 @@ def start_service(name):
 @services_bp.route("/api/services/<name>/stop", methods=["POST"])
 @require_auth
 def stop_service(name):
-    if not _get_service_or_404(g.db, name):
+    svc = _get_service_or_404(g.db, name)
+    if not svc:
         return jsonify({"status": "error", "error": {"message": f"Service '{name}' not found"}}), 404
     systemd_manager.stop_service(name)
-    return jsonify({"status": "success", "message": f"'{name}' stopped", "data": systemd_manager.get_service_status(name)})
+    try:
+        systemd_manager.disable_service(name, now=False)
+        svc.enabled = False
+        g.db.commit()
+    except Exception as e:
+        logger.warning(f"Service '{name}' stopped but failed to disable: {e}")
+
+    return jsonify({"status": "success", "message": f"'{name}' stopped and deactivated", "data": systemd_manager.get_service_status(name)})
 
 
 @services_bp.route("/api/services/<name>/restart", methods=["POST"])

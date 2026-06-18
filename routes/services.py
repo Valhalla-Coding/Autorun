@@ -234,12 +234,19 @@ def start_service(service_name: str):
 
 @services_bp.route('/api/services/<service_name>/stop', methods=['POST'])
 def stop_service(service_name: str):
-    state.find_service(service_name)
+    svc = state.find_service(service_name)
     systemd_manager.stop_service(service_name)
-    state.logger.info(f"Stopped service: {service_name}")
+    try:
+        systemd_manager.disable_service(service_name, now=False)
+        svc.enabled = False
+        config.save_config(state.current_config, state.CONFIG_PATH)
+    except Exception as e:
+        state.logger.warning(f"Service '{service_name}' stopped but failed to disable: {e}")
+
+    state.logger.info(f"Stopped and deactivated service: {service_name}")
     return jsonify({
         "status": "success",
-        "message": f"Service '{service_name}' stopped",
+        "message": f"Service '{service_name}' stopped and deactivated",
         "data": systemd_manager.get_service_status(service_name)
     })
 
