@@ -71,6 +71,8 @@ ExecStart=/usr/bin/python3 {entrypoint}
 {env_section}
 Restart={auto_restart}
 RestartSec=3
+StartLimitBurst=5
+StartLimitIntervalSec=60
 StandardOutput=journal
 StandardError=journal
 
@@ -264,10 +266,22 @@ def get_service_status(service_name: str) -> Dict[str, any]:
     active_state = props.get("ActiveState", "unknown")
     sub_state = props.get("SubState", "unknown")
     unit_file_state = props.get("UnitFileState", "unknown")
+    result_state = props.get("Result", "").lower()
+    exec_main_status = props.get("ExecMainStatus", "0")
+
+    exit_code = None
+    try:
+        exit_code = int(exec_main_status) if exec_main_status else None
+    except ValueError:
+        exit_code = None
 
     if active_state == "active" and sub_state == "running":
         status = "running"
     elif active_state == "failed":
+        status = "failed"
+    elif result_state in {"exit-code", "timeout", "signal"}:
+        status = "failed"
+    elif exit_code and exit_code != 0 and active_state != "active":
         status = "failed"
     elif unit_file_state in ["disabled", "masked"]:
         status = "disabled"
