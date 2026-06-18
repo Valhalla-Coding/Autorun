@@ -113,6 +113,12 @@ except ValueError as e:
 PYEOF
 success "Admin user '$ADMIN_USER' ready"
 
+# Fix database permissions
+info "Setting database permissions..."
+chown -R "$AUTORUN_USER:$AUTORUN_USER" "$DB_DIR"
+chmod 644 "$DB_DIR"/autorun.db* 2>/dev/null || true
+success "Database permissions set"
+
 # ── Sudoers ───────────────────────────────────────────────────────────────────
 info "Configuring sudoers for systemctl..."
 cat > /etc/sudoers.d/autorun <<EOF
