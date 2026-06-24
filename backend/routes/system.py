@@ -30,6 +30,110 @@ def daemon_reload():
     return jsonify({"status": "success", "message": "systemctl daemon-reload executed"})
 
 
+def _autorun_root() -> Path:
+    """Return the root of the AutoRun git repo (parent of the backend/ folder)."""
+    return Path(__file__).resolve().parent.parent
+
+
+@system_bp.route("/api/system/check-self-update", methods=["GET"])
+@require_auth
+def check_self_update():
+    root = _autorun_root()
+    try:
+        fetch = subprocess.run(
+            ["git", "-C", str(root), "fetch", "--quiet"],
+            capture_output=True, timeout=15
+        )
+        if fetch.returncode != 0:
+            return jsonify({"status": "success", "data": {"has_update": False, "reason": "fetch_failed"}})
+
+        local = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            capture_output=True, text=True
+        ).stdout.strip()
+
+        remote = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "@{u}"],
+            capture_output=True, text=True
+        ).stdout.strip()
+
+        has_update = bool(local and remote and local != remote)
+        return jsonify({"status": "success", "data": {"has_update": has_update, "local_sha": local, "remote_sha": remote}})
+    except Exception as e:
+        logger.warning(f"check-self-update error: {e}")
+        return jsonify({"status": "success", "data": {"has_update": False}})
+
+
+@system_bp.route("/api/system/pull-self", methods=["POST"])
+@require_auth
+def pull_self():
+    from git_updater import _get_github_token
+    root = _autorun_root()
+    try:
+        token = _get_github_token()
+        env = {**__import__("os").environ, "GIT_TERMINAL_PROMPT": "0"}
+        if token:
+            env["GIT_ASKPASS"] = "echo"
+            env["GIT_USERNAME"] = token
+            env["GIT_PASSWORD"] = token
+
+        result = subprocess.run(
+            ["git", "-C", str(root), "pull"],
+            capture_output=True, text=True, timeout=60, env=env
+        )
+        if result.returncode != 0:
+            return jsonify({"status": "error", "error": {"message": f"git pull failed: {result.stderr.strip()}"}}), 500
+
+        logger.info("AutoRun self-pull succeeded, restarting service")
+        subprocess.Popen(["systemctl", "restart", "autorun.service"])
+        return jsonify({
+            "status": "success",
+            "message": "AutoRun updated. The server is restarting — reconnect in a moment."
+        })
+    except Exception as e:
+        logger.error(f"pull-self error: {e}")
+        return jsonify({"status": "error", "error": {"message": str(e)}}), 500
+
+
+@system_bp.route("/api/system/set-port", methods=["POST"])
+@require_auth
+def set_port():
+    from database import Setting
+    body = request.get_json()
+    try:
+        port = int(body.get("port", 0))
+    except (TypeError, ValueError):
+        return jsonify({"status": "error", "error": {"message": "port must be an integer"}}), 400
+    if not (1 <= port <= 65535):
+        return jsonify({"status": "error", "error": {"message": "port must be between 1 and 65535"}}), 400
+
+    # Persist to DB
+    db = g.db
+    row = db.query(Setting).filter_by(key="dashboard_port").first()
+    if row:
+        row.value = str(port)
+    else:
+        db.add(Setting(key="dashboard_port", value=str(port)))
+    db.commit()
+
+    # Write systemd drop-in so the port survives reboots
+    override_dir = Path("/etc/systemd/system/autorun.service.d")
+    try:
+        override_dir.mkdir(parents=True, exist_ok=True)
+        (override_dir / "port.conf").write_text(
+            f"[Service]\nEnvironment=AUTORUN_PORT={port}\n"
+        )
+        subprocess.run(["systemctl", "daemon-reload"], check=True)
+        subprocess.Popen(["systemctl", "restart", "autorun.service"])
+    except Exception as e:
+        logger.warning(f"Could not update systemd override: {e}")
+
+    return jsonify({
+        "status": "success",
+        "message": f"Port changed to {port}. The server is restarting — reconnect at the new port shortly."
+    })
+
+
 @system_bp.route("/api/system/status", methods=["GET"])
 @require_auth
 def system_status():

@@ -263,6 +263,24 @@ def restart_service(name):
     return jsonify({"status": "success", "message": f"'{name}' restarted", "data": systemd_manager.get_service_status(name)})
 
 
+@services_bp.route("/api/services/<name>/check-update", methods=["GET"])
+@require_auth
+def check_update(name):
+    from git_updater import _remote_sha
+    svc = _get_service_or_404(g.db, name)
+    if not svc:
+        return jsonify({"status": "error", "error": {"message": f"Service '{name}' not found"}}), 404
+    if not svc.github_url:
+        return jsonify({"status": "success", "data": {"has_update": False, "reason": "no_github_url"}})
+    remote_sha = _remote_sha(svc.github_url)
+    has_update = bool(remote_sha and remote_sha != svc.last_commit_sha)
+    return jsonify({"status": "success", "data": {
+        "has_update": has_update,
+        "local_sha": svc.last_commit_sha,
+        "remote_sha": remote_sha,
+    }})
+
+
 @services_bp.route("/api/services/<name>/pull", methods=["POST"])
 @require_auth
 def pull_service(name):

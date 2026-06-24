@@ -28,25 +28,29 @@ export const auth = {
 }
 
 export const services = {
-  list:    ()           => request('GET',    '/api/services'),
-  get:     (name)       => request('GET',    `/api/services/${name}`),
-  create:  (body)       => request('POST',   '/api/services', body),
-  update:  (name, body) => request('PUT',    `/api/services/${name}`, body),
-  delete:  (name)       => request('DELETE', `/api/services/${name}`),
-  start:   (name)       => request('POST',   `/api/services/${name}/start`),
-  stop:    (name)       => request('POST',   `/api/services/${name}/stop`),
-  restart: (name)       => request('POST',   `/api/services/${name}/restart`),
-  pull:    (name)       => request('POST',   `/api/services/${name}/pull`),
-  enable:  (name)       => request('POST',   `/api/services/${name}/enable`),
-  disable: (name)       => request('POST',   `/api/services/${name}/disable`),
+  list:        ()           => request('GET',    '/api/services'),
+  get:         (name)       => request('GET',    `/api/services/${name}`),
+  create:      (body)       => request('POST',   '/api/services', body),
+  update:      (name, body) => request('PUT',    `/api/services/${name}`, body),
+  delete:      (name)       => request('DELETE', `/api/services/${name}`),
+  start:       (name)       => request('POST',   `/api/services/${name}/start`),
+  stop:        (name)       => request('POST',   `/api/services/${name}/stop`),
+  restart:     (name)       => request('POST',   `/api/services/${name}/restart`),
+  pull:        (name)       => request('POST',   `/api/services/${name}/pull`),
+  checkUpdate: (name)       => request('GET',    `/api/services/${name}/check-update`),
+  enable:      (name)       => request('POST',   `/api/services/${name}/enable`),
+  disable:     (name)       => request('POST',   `/api/services/${name}/disable`),
 }
 
 export const system = {
-  status:        ()     => request('GET',  '/api/system/status'),
-  daemonReload:  ()     => request('POST', '/api/system/daemon-reload'),
-  health:        ()     => request('GET',  '/api/health'),
-  browseFolders: (path) => request('GET',  `/api/browse/folders${path ? `?path=${encodeURIComponent(path)}` : ''}`),
-  browseFiles:   (path) => request('GET',  `/api/browse/files?path=${encodeURIComponent(path)}`),
+  status:          ()     => request('GET',  '/api/system/status'),
+  daemonReload:    ()     => request('POST', '/api/system/daemon-reload'),
+  health:          ()     => request('GET',  '/api/health'),
+  browseFolders:   (path) => request('GET',  `/api/browse/folders${path ? `?path=${encodeURIComponent(path)}` : ''}`),
+  browseFiles:     (path) => request('GET',  `/api/browse/files?path=${encodeURIComponent(path)}`),
+  setPort:         (port) => request('POST', '/api/system/set-port', { port }),
+  checkSelfUpdate: ()     => request('GET',  '/api/system/check-self-update'),
+  pullSelf:        ()     => request('POST', '/api/system/pull-self'),
 }
 
 export const github = {

@@ -50,6 +50,20 @@ def daemon_reload():
     return jsonify({"status": "success", "message": "systemctl daemon-reload executed successfully"})
 
 
+@system_bp.route('/api/system/restart-all', methods=['POST'])
+def restart_all_services():
+    results = []
+    for svc in state.current_config.services:
+        try:
+            systemd_manager.restart_service(svc.name)
+            results.append({"name": svc.name, "status": "restarted"})
+        except Exception as e:
+            state.logger.error(f"Failed to restart '{svc.name}': {e}")
+            results.append({"name": svc.name, "status": "error", "error": str(e)})
+    state.logger.info("Restarted all services")
+    return jsonify({"status": "success", "message": "All services restarted", "data": {"results": results}})
+
+
 @system_bp.route('/api/system/status', methods=['GET'])
 def system_status():
     services_data = []

@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { getToken } from '../api'
+import { useState, useEffect, useRef } from 'react'
+import { getToken, system as systemApi } from '../api'
 
 const LEVEL_STYLES = { ERROR: 'text-red-400', WARNING: 'text-yellow-400', WARN: 'text-yellow-400', INFO: 'text-blue-300', DEBUG: 'text-gray-500' }
 
@@ -18,12 +18,35 @@ export default function ConsolePage() {
   const [paused, setPaused] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true)
   const [services, setServices] = useState([])
+  const [hasUpdate, setHasUpdate] = useState(false)
+  const [pulling, setPulling] = useState(false)
   const bottomRef = useRef(null)
 
   useEffect(() => {
     fetch('/api/services', { headers: { Authorization: `Bearer ${getToken()}` } })
       .then(r => r.json()).then(d => setServices(d.data?.services?.map(s => s.name) ?? [])).catch(() => {})
   }, [])
+
+  // Check if AutoRun itself has an update available
+  useEffect(() => {
+    systemApi.checkSelfUpdate().then(d => setHasUpdate(d.data?.has_update ?? false)).catch(() => {})
+    const id = setInterval(() => {
+      systemApi.checkSelfUpdate().then(d => setHasUpdate(d.data?.has_update ?? false)).catch(() => {})
+    }, 5 * 60 * 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  async function handleSelfPull() {
+    setPulling(true)
+    try {
+      const res = await systemApi.pullSelf()
+      setHasUpdate(false)
+      setLines(prev => [...prev, { text: `✓ ${res.message}`, level: 'INFO', ts: new Date().toISOString() }])
+    } catch (e) {
+      setLines(prev => [...prev, { text: `✗ Pull failed: ${e.message}`, level: 'ERROR', ts: new Date().toISOString() }])
+      setPulling(false)
+    }
+  }
 
   useEffect(() => {
     if (paused) return
@@ -66,6 +89,15 @@ export default function ConsolePage() {
             <option value="all">All services</option>
             {services.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
+          <button onClick={handleSelfPull} disabled={pulling}
+            title="Pull latest AutoRun from GitHub and restart"
+            className={`relative flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border transition disabled:opacity-50 ${hasUpdate ? 'border-green-500 text-green-400 bg-green-500/10 hover:bg-green-500/20' : 'border-gray-700 text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+            {hasUpdate && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse" />}
+            {pulling
+              ? <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>}
+            {hasUpdate ? 'Update available' : 'Update AutoRun'}
+          </button>
           <div className="relative">
             <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filter…" className="bg-gray-800 border border-gray-700 text-gray-200 text-sm rounded-lg pl-7 pr-3 py-1.5 w-40 focus:outline-none focus:ring-2 focus:ring-brand-500" />
