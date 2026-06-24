@@ -25,6 +25,23 @@
         </div>
     </section>
 
+    <section class="dashboard-settings-section">
+        <div class="section-header collapsible" id="dashboard-settings-toggle">
+            <h2>⚙️ Dashboard Settings</h2>
+            <span class="collapse-icon">▾</span>
+        </div>
+        <div id="dashboard-settings-body">
+            <div class="github-token-card">
+                <p>Change the port the AutoRun dashboard listens on. The server will restart automatically and you will need to reconnect at the new port.</p>
+                <div class="token-input-row">
+                    <input type="number" id="dashboard-port-input" min="1" max="65535" placeholder="8080" style="width:120px">
+                    <button id="dashboard-port-save" class="btn-primary">Save &amp; Restart</button>
+                </div>
+                <small id="dashboard-port-status"></small>
+            </div>
+        </div>
+    </section>
+
     <section class="github-settings-section">
         <div class="section-header collapsible" id="github-settings-toggle">
             <h2>🐙 GitHub Settings</h2>

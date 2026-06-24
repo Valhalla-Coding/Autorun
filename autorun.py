@@ -23,6 +23,9 @@ logging.basicConfig(
 app = Flask(__name__)
 app.config['JSON_SORT_KEYS'] = False
 
+# Initialize with default port, will be updated during app initialization
+app.config['DASHBOARD_PORT'] = 80
+
 register_routes(app)
 
 
@@ -73,6 +76,9 @@ def init_app():
         else:
             state.logger.info(f"Loading configuration from {state.CONFIG_PATH}")
             state.current_config = config.load_config(state.CONFIG_PATH)
+
+        # Update Flask app config with dashboard port
+        app.config['DASHBOARD_PORT'] = state.current_config.metadata.dashboard_port
 
         errors = config.validate_config(state.current_config, strict=True)
         if errors:

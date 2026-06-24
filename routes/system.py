@@ -4,6 +4,7 @@ AutoRun v2 - System API Routes
 System-level controls (reload, daemon-reload, status, health) and file browser.
 """
 
+import subprocess
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request
@@ -69,6 +70,41 @@ def system_status():
             "failed":  sum(1 for s in services_data if s['status'] == 'failed'),
             "services": services_data,
         }
+    })
+
+
+@system_bp.route('/api/settings/dashboard-port', methods=['GET'])
+def get_dashboard_port():
+    port = state.current_config.metadata.dashboard_port if state.current_config else 8080
+    return jsonify({"status": "success", "data": {"port": port}})
+
+
+@system_bp.route('/api/settings/dashboard-port', methods=['PUT'])
+def set_dashboard_port():
+    data = request.get_json()
+    if not data or 'port' not in data:
+        return jsonify({"status": "error", "error": {"message": "port is required"}}), 400
+
+    try:
+        port = int(data['port'])
+    except (ValueError, TypeError):
+        return jsonify({"status": "error", "error": {"message": "port must be an integer"}}), 400
+
+    if not (1 <= port <= 65535):
+        return jsonify({"status": "error", "error": {"message": "port must be between 1 and 65535"}}), 400
+
+    state.current_config.metadata.dashboard_port = port
+    config.save_config(state.current_config, state.CONFIG_PATH)
+    state.logger.info(f"Dashboard port changed to {port}, restarting autorun service")
+
+    try:
+        subprocess.Popen(['sudo', 'systemctl', 'restart', 'autorun.service'])
+    except Exception as e:
+        state.logger.warning(f"Could not restart autorun.service: {e}")
+
+    return jsonify({
+        "status": "success",
+        "message": f"Port saved to {port}. The server is restarting — reconnect at the new port shortly."
     })
 
 
